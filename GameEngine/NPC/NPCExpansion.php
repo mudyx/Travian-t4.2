@@ -54,6 +54,8 @@ class NPCExpansion {
 		switch($e['state']) {
 		case 'idle':
 			if(count($villages) >= self::profileValue(NPC_EXPAND_MAX, $npc['profile'], 3)) break;
+			$row = mysql_fetch_row($database->query("SELECT COUNT(*) FROM ".TB_PREFIX."vdata WHERE owner IN (SELECT uid FROM ".TB_PREFIX."npc)"));
+			if($row[0] >= (NPC_VILLAGE_CAP > 0 ? NPC_VILLAGE_CAP : 3 * NPCWorld::maxNpcs())) break;   // map/server limit
 			$mother = self::motherVillage($npc, $villages);
 			if(!$mother) break;
 			list($have, $need, $eta) = self::culturePoints($uid, count($villages));

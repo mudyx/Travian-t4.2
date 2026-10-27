@@ -93,3 +93,16 @@ define('NPC_EXPAND_MIN_POP', 120);          // population of the village the set
 define('NPC_EXPAND_CP_AHEAD', 43200);       // starts preparing when the culture points are this many real seconds away
 define('NPC_EXPAND_RADIUS', 12);            // new villages within this many fields of the mother village ...
 define('NPC_EXPAND_MIN_DIST', 3);           // ... but not closer than this
+
+// World growth (NPCWorld::grow, part of the NPC tick). Real seconds, like sign-ups.
+define('NPC_MAX', 0);                       // NPCs joining over the round; 0 = by map size (WORLD_MAX / 2, kept within 20..50)
+define('NPC_START_SHARE', 0.4);             // share already there at the round start ...
+define('NPC_GROWTH_TAU', 172800);           // ... the rest joins along 1 - e^(-t/tau) (63 % of them in 2 days)
+define('NPC_MIN_ACTIVE', 0.6);              // late joiners keep the active NPCs at this share of NPC_MAX
+define('NPC_SPAWN_PER_STEP', 3);            // new accounts per growth step (keeps the request short)
+define('NPC_GROW_INTERVAL', 300);           // seconds between growth steps
+define('NPC_QUIT_RATE', 0.03);              // daily chance to stop playing (x 1.5..0.5 by diligence, x more when farmed)
+define('NPC_QUIT_MIN_AGE', 86400);          // nobody quits in the first day; quitters' villages stay as inactive farms
+define('NPC_VILLAGE_CAP', 0);               // all NPC villages together; 0 = 3 x NPC_MAX (no expansion beyond)
+define('NPC_LAG_THRESHOLD', 300);           // a due NPC this many seconds late while the game is open = the server can't keep up ...
+define('NPC_LAG_PAUSE', 3600);              // ... then no new NPCs for this long

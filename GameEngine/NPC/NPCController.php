@@ -28,7 +28,9 @@ class NPCController {
 	public function run() {
 		NPCIntel::evaluateRaids();
 		$done = 0;
-		foreach($this->getDueNpcs() as $npc) {
+		$due = $this->getDueNpcs();
+		$this->checkLag($due);
+		foreach($due as $npc) {
 			if(!$this->hasTime()) {
 				npc_log("budget used up, remaining NPCs wait for the next tick");
 				break;
@@ -50,6 +52,17 @@ class NPCController {
 			$done++;
 		}
 		return $done;
+	}
+
+	// The game has been open (ticks less than 2 min apart) and still an NPC is
+	// NPC_LAG_THRESHOLD late: the server can't keep up - NPCWorld stops adding NPCs
+	private function checkLag($due) {
+		$now = time();
+		$prev = intval(npc_meta_get('tick_at', 0));
+		npc_meta_set('tick_at', $now);
+		if($prev > 0 && $now - $prev < 120 && !empty($due) && $now - $due[0]['next_action_at'] > NPC_LAG_THRESHOLD) {
+			npc_meta_set('lag_at', $now);
+		}
 	}
 
 	public function getDueNpcs() {

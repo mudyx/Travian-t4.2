@@ -77,13 +77,13 @@ function npc_migrate($force = false) {
 }
 
 function npc_load_classes() {
-	foreach(array('NPCVillage', 'NPCRules', 'NPCEconomy', 'NPCMilitary', 'NPCIntel', 'NPCAttack', 'NPCActions', 'NPCHuman', 'NPCDefence', 'NPCWorld', 'NPCExpansion', 'NPCController') as $class) {
+	foreach(array('NPCVillage', 'NPCRules', 'NPCEconomy', 'NPCMilitary', 'NPCIntel', 'NPCAttack', 'NPCActions', 'NPCHuman', 'NPCDefence', 'NPCWorld', 'NPCExpansion', 'NPCFactory', 'NPCController') as $class) {
 		require_once dirname(__FILE__).'/'.$class.'.php';
 	}
 }
 
 // One NPC tick: due NPCs act (catching up missed time), raids get evaluated,
-// old NPC data is cleaned up hourly. Only one tick runs at a time; a request
+// old NPC data is cleaned up hourly, the NPC population grows/shrinks. Only one tick runs at a time; a request
 // that finds it busy skips it. Never throws - a page must not break because of NPCs.
 function npc_tick($budget, $maxSteps) {
 	if(!npc_acquire_lock('npc_tick', 0)) {
@@ -96,6 +96,7 @@ function npc_tick($budget, $maxSteps) {
 			$controller = new NPCController($budget, $maxSteps);
 			$done = $controller->run();
 			$controller->housekeeping();
+			NPCWorld::grow($controller);
 		}
 	} catch(Exception $e) {
 		error_log('NPC tick: '.$e->getMessage());
