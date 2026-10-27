@@ -11,8 +11,9 @@
  *
  * Population (grow(), every NPC_GROW_INTERVAL from the background ping/CLI).
  * Nothing is filled up to a number - people come and go:
- *   sign-ups  a random process (Poisson) whose rate follows the round: a launch
- *             rush, a main wave over the first days, a thin trickle later; more
+ *   sign-ups  a random process (Poisson) whose rate follows the round: those who
+ *             waited for the opening in its first minutes, a launch rush, a main
+ *             wave over the first days, a thin trickle later; more
  *             in the evening than at night; random spells of an advert or word of
  *             mouth (several times more) or of silence; a world popularity drawn
  *             once per round; a crowded map attracts fewer. Sometimes 2-5 friends
@@ -77,12 +78,16 @@ class NPCWorld {
 
 	// ---- sign-ups ----
 
-	// Expected sign-ups per hour at $t, before spells, popularity and crowding
+	// Expected sign-ups per hour at $t, before spells, popularity and crowding.
+	// Those who waited for the server to open come right away, at any hour; the
+	// rest follow the time of day.
 	public static function signupRate($t) {
 		$age = max(0, $t - COMMENCE) / 3600;
+		$launchHours = NPC_JOIN_LAUNCH_MINUTES / 60;
+		$launch = self::maxNpcs() * NPC_JOIN_LAUNCH / $launchHours * exp(-$age / $launchHours);
 		$rate = self::maxNpcs() * (NPC_JOIN_RUSH / NPC_JOIN_RUSH_HOURS * exp(-$age / NPC_JOIN_RUSH_HOURS) +
 			NPC_JOIN_MAIN / NPC_JOIN_MAIN_HOURS * exp(-$age / NPC_JOIN_MAIN_HOURS) + NPC_JOIN_LATE / 24);
-		return $rate * self::$hours[intval(NPCHuman::clock('G', $t))] / (array_sum(self::$hours) / 24);
+		return $launch + $rate * self::$hours[intval(NPCHuman::clock('G', $t))] / (array_sum(self::$hours) / 24);
 	}
 
 	// Draws the sign-ups of [$from, $now) into the waiting queue (npc_meta join_queue, group sizes)

@@ -85,6 +85,11 @@ function npc_load_classes() {
 // One NPC tick: due NPCs act (catching up missed time), raids get evaluated,
 // old NPC data is cleaned up hourly, the NPC population grows/shrinks. Only one tick runs at a time; a request
 // that finds it busy skips it. Never throws - a page must not break because of NPCs.
+// The CLI runner ran within the last 90 s (npc_runner.php notes each run): it does the NPC work
+function npc_motor_running() {
+	return time() - intval(npc_meta_get('runner_at', 0)) < 90;
+}
+
 function npc_tick($budget, $maxSteps) {
 	if(!npc_acquire_lock('npc_tick', 0)) {
 		return 0;

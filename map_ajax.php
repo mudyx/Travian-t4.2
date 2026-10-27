@@ -6,8 +6,12 @@
 /	Mobile: 09127679667  / Yahoo ID : mersad_mr@att.net
 /
 */
+// Map data/images: the pages and the NPC motor run the automation, not these
+define('AUTOMATION_MANUAL', true);
 include("GameEngine/Protection.php");
 include("GameEngine/Village.php");
+session_write_close();   // the map's many requests don't wait for each other on the session lock
+include_once("GameEngine/MapData.php");
 if($_GET){
 	if(isset($_GET['cmd'])){
 		header('Content-Type:application/json; charset=UTF-8;');
@@ -38,18 +42,17 @@ for($i=-5;$i<=5;$i++){
 }
 
 $maparray = array();
+$ids = array();
 for($i=0;$i<=9;$i++) {
     for($j=0;$j<=9;$j++) {
     	$id = $generator->getBaseID($xarray[$j],$yarray[$i]);
-		$wdata = $database->getAInfo($id);
-		if ($wdata['oasistype']==0){
-			array_push($maparray,$database->getMInfo($id));
-		} else {
-			array_push($maparray,$database->getOMInfo($id));
-		}
+		$ids[] = $id;
 	}
 }
 
+
+$map = new MapData($ids);
+foreach($ids as $id) { array_push($maparray, $map->tile($id)); }
 
 $row = 0;
 $coorindex = 0;
@@ -74,10 +77,10 @@ for($i=0;$i<=99;$i++) {
 	$atwararray = array();
 	$naparray = array();
 	if($maparray[$index]['occupied'] > 0) {
-		$targetalliance = $database->getUserField($maparray[$index]['owner'],"alliance",0);
-		$tribe = $database->getUserField($maparray[$index]['owner'],"tribe",0);
-		$username = $database->getUserField($maparray[$index]['owner'],"username",0);
-		$oasisowner = $database->getUserField($maparray[$index]['owner'],"username",0);
+		$targetalliance = $map->user($maparray[$index]['owner'],"alliance");
+		$tribe = $map->user($maparray[$index]['owner'],"tribe");
+		$username = $map->user($maparray[$index]['owner'],"username");
+		$oasisowner = $map->user($maparray[$index]['owner'],"username");
     }
 	
 	$bgcolorclass = 'tilebgcolor';
@@ -185,11 +188,10 @@ for($i=0;$i<=99;$i++) {
 	}
 				
     if($targetalliance!=0) {
-    	$allyname = $database->getAllianceName($targetalliance);
+    	$allyname = $map->tag($targetalliance);
     } else {$allyname='';}
         
-    $odata = $database->getOMInfo($maparray[$index]['id']);
-    $uinfo = $database->getUserField($odata['owner'],'username',0);
+    $uinfo = $maparray[$index]['oasistype'] > 0 ? $map->user($maparray[$index]['owner'], 'username') : '';
     if (DIRECTION == 'ltr'){
 			$targetXYText = '('.$maparray[$index]['x']."|".$maparray[$index]['y'].')';
 	} elseif (DIRECTION == 'rtl'){

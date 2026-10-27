@@ -17,6 +17,7 @@ if(!npc_acquire_lock('npc_runner', 0)) {
 }
 
 $started = microtime(true);
+npc_meta_set('runner_at', time());   // the pages leave the NPCs to the runner (npc_motor_running)
 
 if(runAutomation(NPC_AUTOMATION_LOCK_WAIT)) {
 	npc_log("automation done");

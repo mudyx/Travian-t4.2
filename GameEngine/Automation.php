@@ -95,7 +95,8 @@ require_once dirname(__FILE__)."/NPC/npc_common.php";
 // runAutomation() / npc_tick() themselves.
 if(!defined('AUTOMATION_MANUAL')) {
 	runAutomation(0);
-	npc_tick(defined('NPC_PING') ? NPC_PING_BUDGET : NPC_PAGE_BUDGET,
+	// While the NPC motor (npc_runner.php in a loop) runs, the pages leave the NPCs to it
+	if(!npc_motor_running()) npc_tick(defined('NPC_PING') ? NPC_PING_BUDGET : NPC_PAGE_BUDGET,
 		defined('NPC_PING') ? NPC_PING_MAX_STEPS : NPC_PAGE_MAX_STEPS);
 }
 

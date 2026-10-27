@@ -9,8 +9,12 @@
 set_time_limit(0);
 ini_set('memory_limit', '-1');
 
+// Map data/images: the pages and the NPC motor run the automation, not these
+define('AUTOMATION_MANUAL', true);
 //include("GameEngine/Protection.php");
 include("GameEngine/Village.php");
+session_write_close();   // the map's many requests don't wait for each other on the session lock
+include_once("GameEngine/MapData.php");
 
 // /map_block.php?tx0=-50&ty0=120&tx1=-41&ty1=129&w=600&h=600&version=62
 $queue = array();
@@ -43,30 +47,29 @@ for($i=-$noc;$i<=$noc;$i++){
 	$xarray[] = $tmp;
 }
 $maparray = array();
+$ids = array();
 for($i=0;$i<=$nob-1;$i++) {
     for($j=0;$j<=$nob-1;$j++) {
     	$id = $generator->getBaseID($xarray[$j],$yarray[$i]);
-		$wdata = $database->getAInfo($id);
-		if ($wdata['oasistype']==0){
-			array_push($maparray,$database->getMInfo($id));
-		} else {
-			array_push($maparray,$database->getOMInfo($id));
-		}
+		$ids[] = $id;
 	}
 }
+$map = new MapData($ids);
+foreach($ids as $id) { array_push($maparray, $map->tile($id)); }
+
 $row = 0;
 $coorindex = 0;
 
 
 $nareadis = NATARS_MAX;
-for($i=0;$i<=($nob*$nob);$i++) {
+for($i=0;$i<($nob*$nob);$i++) {
 	$maparray[$i]['zerodis'] = sqrt(($maparray[$i]['x']*$maparray[$i]['x'])+($maparray[$i]['y']*$maparray[$i]['y']));
 	if ($maparray[$i]['zerodis']<=$nareadis) {$maparray[$i]['isgraytile']=true;} else {$maparray[$i]['isgraytile']=false;}
 }
 
 $index = 0;
 $row1 = 0;
-for($i=0;$i<=($nob*$nob);$i++) {
+for($i=0;$i<($nob*$nob);$i++) {
 	$targetalliance = 0;
 	$tribe = -1;
 	$username = '';
@@ -75,10 +78,10 @@ for($i=0;$i<=($nob*$nob);$i++) {
 	$atwararray = array();
 	$naparray = array();
 	if($maparray[$index]['occupied'] > 0) {
-		$targetalliance = $database->getUserField($maparray[$index]['owner'],"alliance",0);
-		$tribe = $database->getUserField($maparray[$index]['owner'],"tribe",0);
-		$username = $database->getUserField($maparray[$index]['owner'],"username",0);
-		$oasisowner = $database->getUserField($maparray[$index]['owner'],"username",0);
+		$targetalliance = $map->user($maparray[$index]['owner'],"alliance");
+		$tribe = $map->user($maparray[$index]['owner'],"tribe");
+		$username = $map->user($maparray[$index]['owner'],"username");
+		$oasisowner = $map->user($maparray[$index]['owner'],"username");
     }
 	
 	$bgcolorclass = 'tilebgcolor';
@@ -161,11 +164,10 @@ for($i=0;$i<=($nob*$nob);$i++) {
 	}
 				
     if($targetalliance!=0) {
-    	$allyname = $database->getAllianceName($targetalliance);
+    	$allyname = $map->tag($targetalliance);
     } else {$allyname='';}
         
-    $odata = $database->getOMInfo($maparray[$index]['id']);
-    $uinfo = $database->getUserField($odata['owner'],'username',0);
+    $uinfo = $maparray[$index]['oasistype'] > 0 ? $map->user($maparray[$index]['owner'], 'username') : '';
     if (DIRECTION == 'ltr'){
 			$targetXYText = '('.$maparray[$index]['x']."|".$maparray[$index]['y'].')';
 	} elseif (DIRECTION == 'rtl'){
@@ -278,15 +280,15 @@ $bh = $_GET['h']/$ny;
 
 foreach($queue as $block) {
 	if(preg_match('/1/is',$block[0])) {
-		imagecopyresized($img, imagecreatefromgif('img/m/gray.gif'), $x, $y, 0, 0, $bw, $bh, 60, 60);
+		imagecopyresized($img, map_tile_image('gray'), $x, $y, 0, 0, $bw, $bh, 60, 60);
 	}
-	imagecopyresized($img, imagecreatefromgif('img/m/'. $block[0] .'.gif'), $x, $y, 0, 0, $bw, $bh, 60, 60);
-	imagecopyresized($img, imagecreatefromgif('img/m/'. $block[1] .'.gif'), $x, $y, 0, 0, $bw, $bh, 60, 60);
-	imagecopyresized($img, imagecreatefromgif('img/m/'. $block[4] .'.gif'), $x, $y, 0, 0, $bw, $bh, 60, 60);
+	imagecopyresized($img, map_tile_image($block[0]), $x, $y, 0, 0, $bw, $bh, 60, 60);
+	imagecopyresized($img, map_tile_image($block[1]), $x, $y, 0, 0, $bw, $bh, 60, 60);
+	imagecopyresized($img, map_tile_image($block[4]), $x, $y, 0, 0, $bw, $bh, 60, 60);
 	if(strlen($block[5])>0) { 
-		imagecopyresized($img, imagecreatefromgif('img/m/'. $block[5].'.gif'), $x, $y, 0, 0, $bw, $bh, 60, 60);
+		imagecopyresized($img, map_tile_image($block[5]), $x, $y, 0, 0, $bw, $bh, 60, 60);
 	}
-	imagecopyresized($img, imagecreatefromgif('img/m/'. $block[6] .'.gif'), $x, $y, 0, 0, $bw, $bh, 60, 60);
+	imagecopyresized($img, map_tile_image($block[6]), $x, $y, 0, 0, $bw, $bh, 60, 60);
 		
 	/* DEBUG */
 	define('IS_DEBUG',false);
@@ -317,6 +319,7 @@ if($_GET['file'] > 0) {
 	echo 'Done.';
 }else{
 	header('Content-type: image/jpg');
+	header('Cache-Control: private, max-age=60');   // panning back and forth needs no new image
 	imagejpeg($img);
 }
 imagedestroy($img);
