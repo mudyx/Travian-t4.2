@@ -26,7 +26,7 @@ define('NPC_CATCHUP_MAX', 7 * 86400);       // never replay more than this
 define('NPC_CLEANUP_INTERVAL', 3600);       // seconds between cleanups
 define('NPC_CLEANUP_KEEP_DAYS', 3);         // processed NPC-vs-NPC/farm movements, attacks, raids
 define('NPC_REPORT_KEEP_HOURS', 24);        // NPCs' own reports (nobody reads them)
-define('NPC_LOG_KEEP_DAYS', 7);             // s1_npc_log
+define('NPC_LOG_KEEP_DAYS', 3);             // s1_npc_log (hundreds of NPCs write a lot)
 
 // Economy
 define('NPC_STORAGE_HOURS', 3);             // warehouse/granary should hold at least this many hours of production
@@ -82,7 +82,7 @@ define('NPC_REVENGE_PATIENCE', 21600);      // a revenge not carried out by then
 
 // World placement (NPCWorld): new NPCs sit on a Vogel spiral around the map
 // centre - evenly spread, the occupied ring growing outwards like real sign-ups
-define('NPC_SPAWN_STEP', 3.2);              // spiral density: radius = NATARS_MAX + 3 + step * sqrt(k)
+define('NPC_SPAWN_STEP', 2.6);              // spiral density: radius = NATARS_MAX + 3 + step * sqrt(k) (400 NPCs reach ~r 77)
 define('NPC_SPAWN_SPACING', 4);             // fields to the nearest other village
 define('NPC_PLAYER_SPACING', 7);            // fields to the nearest real player's village
 
@@ -95,14 +95,21 @@ define('NPC_EXPAND_RADIUS', 12);            // new villages within this many fie
 define('NPC_EXPAND_MIN_DIST', 3);           // ... but not closer than this
 
 // World growth (NPCWorld::grow, part of the NPC tick). Real seconds, like sign-ups.
-define('NPC_MAX', 0);                       // NPCs joining over the round; 0 = by map size (WORLD_MAX / 2, kept within 20..50)
+define('NPC_MAX', 0);                       // NPCs joining over the round; 0 = by map size (WORLD_MAX x 4, kept within 160..400)
 define('NPC_START_SHARE', 0.4);             // share already there at the round start ...
 define('NPC_GROWTH_TAU', 172800);           // ... the rest joins along 1 - e^(-t/tau) (63 % of them in 2 days)
 define('NPC_MIN_ACTIVE', 0.6);              // late joiners keep the active NPCs at this share of NPC_MAX
-define('NPC_SPAWN_PER_STEP', 3);            // new accounts per growth step (keeps the request short)
-define('NPC_GROW_INTERVAL', 300);           // seconds between growth steps
+define('NPC_SPAWN_PER_STEP', 10);           // new accounts per growth step (runs only in the background ping / CLI)
+define('NPC_GROW_INTERVAL', 120);           // seconds between growth steps
 define('NPC_QUIT_RATE', 0.03);              // daily chance to stop playing (x 1.5..0.5 by diligence, x more when farmed)
 define('NPC_QUIT_MIN_AGE', 86400);          // nobody quits in the first day; quitters' villages stay as inactive farms
 define('NPC_VILLAGE_CAP', 0);               // all NPC villages together; 0 = 3 x NPC_MAX (no expansion beyond)
 define('NPC_LAG_THRESHOLD', 300);           // a due NPC this many seconds late while the game is open = the server can't keep up ...
 define('NPC_LAG_PAUSE', 3600);              // ... then no new NPCs for this long
+
+// Trade between own villages (NPCMarket): rich villages send surplus to hungry ones (colonies first)
+define('NPC_TRADE_DONOR_FILL', 0.7);        // a resource this full (share of storage) can be given away ...
+define('NPC_TRADE_DONOR_KEEP', 0.4);        // ... down to this share
+define('NPC_TRADE_TARGET_FILL', 0.6);       // receivers are filled up to this share (incoming merchants count)
+define('NPC_TRADE_MIN_LOAD', 0.5);          // a trip carries at least this share of a merchant's load or of the receiver's warehouse
+define('NPC_TRADE_MAX_HOURS', 3);           // longest trip worth it (game hours, divided by SPEED)

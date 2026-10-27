@@ -149,6 +149,10 @@ class NPCExpansion {
 		$uid = intval($npc['uid']);
 		$roles = self::roles($uid);
 		$v->plan = isset($roles[$v->wref]) ? self::$colonyPlans[$roles[$v->wref]] : array();
+		if(!empty($roles)) {
+			// Several villages: merchants to move resources around (NPCMarket)
+			$v->plan[] = array(17, isset($roles[$v->wref]) ? 1 : 3, 'trade');
+		}
 		$v->reserve = array();
 		$e = self::state($uid);
 		if($e['from_wref'] != $v->wref) return;

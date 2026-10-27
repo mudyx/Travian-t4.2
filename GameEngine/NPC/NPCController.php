@@ -7,7 +7,7 @@
  * An NPC that is overdue by more than NPC_CATCHUP_THRESHOLD (the game was
  * closed) first replays the missed time in catchUp(); then it acts live: a
  * session of incoming-attack check, one job per build queue, research/training,
- * expansion step, maybe a raid or revenge - unless it is asleep. When it looks again, how it
+ * expansion step, trade between own villages, maybe a raid or revenge - unless it is asleep. When it looks again, how it
  * chooses and when it takes breaks is NPCHuman (in the replay too).
  */
 class NPCController {
@@ -121,6 +121,7 @@ class NPCController {
 			if($m['acted']) $v->refresh();
 		}
 		$this->saveBudget($npc['uid'], $budget);
+		NPCMarket::turn($this, $npc, $villages);   // what is left over goes to villages that need it
 		$this->raidTurn($npc, $villages);
 		list($next, $kind) = NPCHuman::nextVisit($npc, $now, max(NPC_TICK_SECONDS, min(NPC_MAX_SLEEP, $delay)));
 		if($watch && $watch < $next) {

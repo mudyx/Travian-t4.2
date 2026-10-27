@@ -164,6 +164,24 @@ class NPCActions {
 		return $seconds;
 	}
 
+	// Sends resources with $merchants merchants to village $to, as Market::sendResource():
+	// s1_send row + movement sort_type 0; the automation delivers them and brings
+	// the merchants back. Free merchants are checked by NPCMarket. Returns true/false.
+	public static function sendResources(NPCVillage $v, $to, $res, $merchants, $seconds) {
+		global $database;
+		$res = array('wood' => intval($res['wood']), 'clay' => intval($res['clay']), 'iron' => intval($res['iron']),
+			'crop' => intval($res['crop']));
+		if(!self::takeResources($v->wref, $res)) {
+			return false;
+		}
+		$ref = $database->sendResource($res['wood'], $res['clay'], $res['iron'], $res['crop'], intval($merchants));
+		if(!$ref || !$database->addMovement(0, $v->wref, intval($to), $ref, implode(',', $res), time() + $seconds)) {
+			$database->modifyResource($v->wref, $res['wood'], $res['clay'], $res['iron'], $res['crop'], 1);
+			return false;
+		}
+		return true;
+	}
+
 	// Atomic "subtract only if there is enough of everything"
 	public static function takeResources($wref, $cost) {
 		global $database;

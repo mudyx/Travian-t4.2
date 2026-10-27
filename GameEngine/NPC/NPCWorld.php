@@ -28,7 +28,7 @@ class NPCWorld {
 
 	// NPCs that join over the round
 	public static function maxNpcs() {
-		return NPC_MAX > 0 ? NPC_MAX : max(20, min(50, round(WORLD_MAX / 2)));
+		return NPC_MAX > 0 ? NPC_MAX : max(160, min(400, round(WORLD_MAX * 4)));
 	}
 
 	// One growth step: quitting, then arrivals as the curve and the server allow.

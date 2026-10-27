@@ -38,7 +38,7 @@ class NPCHuman {
 	);
 
 	// How much a reason is worth to a player
-	private static $utility = array('expansion' => 3.0, 'storage' => 3.0, 'colony' => 2.5, 'lowest production' => 2.0,
+	private static $utility = array('expansion' => 3.0, 'storage' => 3.0, 'colony' => 2.5, 'trade' => 2.2, 'lowest production' => 2.0,
 		'plan' => 2.0, 'whim' => 1.2);
 
 	// Buildings a raid-minded player suddenly cares about

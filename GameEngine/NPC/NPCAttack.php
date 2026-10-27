@@ -61,7 +61,7 @@ class NPCAttack {
 		$intel = NPCIntel::forNpc($npc['uid']);
 		$fresh = time() - round(NPC_INTEL_MAX_AGE / SPEED);
 		$best = null;
-		foreach(self::targets($npc) as $t) {
+		foreach(self::targets($npc, true, $from, NPC_RAID_RADIUS) as $t) {
 			if($generator->procDistance($from, $t) > NPC_RAID_RADIUS) continue;
 			if($database->hasBeginnerProtection($t['wref'])) continue;
 
@@ -94,7 +94,8 @@ class NPCAttack {
 	}
 
 	// Villages this NPC may raid (distance and protection are checked in plan())
-	private static function targets($npc, $cooldown = true) {
+	// $from/$radius: only villages in that square of the map (hundreds of NPCs)
+	private static function targets($npc, $cooldown = true, $from = null, $radius = 0) {
 		global $database;
 		$owners = "v.owner IN (SELECT uid FROM ".TB_PREFIX."npc) OR (v.owner = 3 AND v.name = 'Farm')";
 		if(NPC_ATTACK_REAL_PLAYERS) {
@@ -103,7 +104,9 @@ class NPCAttack {
 		$recent = $cooldown ? time() - round(NPC_RAID_TARGET_COOLDOWN / SPEED) : time();
 		return $database->query_return("SELECT v.wref, v.owner, v.name, w.x, w.y FROM ".TB_PREFIX."vdata v".
 			" JOIN ".TB_PREFIX."wdata w ON w.id = v.wref".
-			" WHERE v.owner <> ".intval($npc['uid'])." AND v.owner <> 2 AND v.natar = 0 AND v.pop > 0 AND (".$owners.")".
+			" WHERE ".($from ? "w.x BETWEEN ".($from['x'] - $radius)." AND ".($from['x'] + $radius).
+			" AND w.y BETWEEN ".($from['y'] - $radius)." AND ".($from['y'] + $radius)." AND " : "").
+			"v.owner <> ".intval($npc['uid'])." AND v.owner <> 2 AND v.natar = 0 AND v.pop > 0 AND (".$owners.")".
 			" AND v.wref NOT IN (SELECT to_wref FROM ".TB_PREFIX."npc_raid WHERE uid = ".intval($npc['uid'])." AND sent_at > ".$recent.")");
 	}
 
@@ -121,7 +124,7 @@ class NPCAttack {
 		$left = $arrive - time();
 		$best = null;
 		$longest = 0;
-		foreach(self::targets($npc, false) as $t) {
+		foreach(self::targets($npc, false, $from, 2 * NPC_RAID_RADIUS) as $t) {
 			if($t['wref'] == $attackerWref || $database->hasBeginnerProtection($t['wref'])) continue;
 			if(isset($intel[$t['wref']]) && $intel[$t['wref']]['defence'] * 2 > $raid['attack']) continue;
 			$seconds = $generator->procDistanceTime($from, $t, $raid['speed'], 1);

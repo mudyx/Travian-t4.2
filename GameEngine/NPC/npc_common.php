@@ -77,7 +77,7 @@ function npc_migrate($force = false) {
 }
 
 function npc_load_classes() {
-	foreach(array('NPCVillage', 'NPCRules', 'NPCEconomy', 'NPCMilitary', 'NPCIntel', 'NPCAttack', 'NPCActions', 'NPCHuman', 'NPCDefence', 'NPCWorld', 'NPCExpansion', 'NPCFactory', 'NPCController') as $class) {
+	foreach(array('NPCVillage', 'NPCRules', 'NPCEconomy', 'NPCMilitary', 'NPCIntel', 'NPCAttack', 'NPCActions', 'NPCHuman', 'NPCDefence', 'NPCWorld', 'NPCExpansion', 'NPCMarket', 'NPCFactory', 'NPCController') as $class) {
 		require_once dirname(__FILE__).'/'.$class.'.php';
 	}
 }
@@ -96,7 +96,8 @@ function npc_tick($budget, $maxSteps) {
 			$controller = new NPCController($budget, $maxSteps);
 			$done = $controller->run();
 			$controller->housekeeping();
-			NPCWorld::grow($controller);
+			// New accounts only from the background ping / CLI: a page request stays fast
+			if(defined('NPC_PING') || php_sapi_name() === 'cli') NPCWorld::grow($controller);
 		}
 	} catch(Exception $e) {
 		error_log('NPC tick: '.$e->getMessage());
