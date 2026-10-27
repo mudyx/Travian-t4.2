@@ -10,11 +10,12 @@ function updateResource(){
 	global $database;
 	//Villages
 	$time = time();
+	// lastupdate is UNSIGNED - keep it out of the subtraction (see farms.php)
 	$q = 'SELECT * FROM '.TB_PREFIX .'vdata WHERE (woodp=0 AND clayp=0 AND ironp=0 AND cropp=0) OR '.
-		'(woodp<>0 AND (3600/woodp)<=('.$time.'-lastupdate)) OR '.
-		'(clayp<>0 AND (3600/clayp)<=('.$time.'-lastupdate)) OR '.
-		'(ironp<>0 AND (3600/ironp)<=('.$time.'-lastupdate)) OR '.
-		'(cropp<>0 AND (3600/ABS(cropp))<=('.$time.'-lastupdate))';
+		'(woodp<>0 AND lastupdate <= '.$time.' - 3600/woodp) OR '.
+		'(clayp<>0 AND lastupdate <= '.$time.' - 3600/clayp) OR '.
+		'(ironp<>0 AND lastupdate <= '.$time.' - 3600/ironp) OR '.
+		'(cropp<>0 AND lastupdate <= '.$time.' - 3600/ABS(cropp))';
 	$list = $database->query_return($q);
 	if(!empty($list) && count($list)>0){ foreach($list as $l){ updateVResource($l['wref']);}}
 }
