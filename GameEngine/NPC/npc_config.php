@@ -79,3 +79,17 @@ define('NPC_REVENGE_CHANCE', 0.5);          // x aggression/50 x mood, +25 % per
 define('NPC_REVENGE_DELAY_MIN', 600);       // revenge is planned 10-60 min ahead
 define('NPC_REVENGE_DELAY_MAX', 3600);
 define('NPC_REVENGE_PATIENCE', 21600);      // a revenge not carried out by then is dropped
+
+// World placement (NPCWorld): new NPCs sit on a Vogel spiral around the map
+// centre - evenly spread, the occupied ring growing outwards like real sign-ups
+define('NPC_SPAWN_STEP', 3.2);              // spiral density: radius = NATARS_MAX + 3 + step * sqrt(k)
+define('NPC_SPAWN_SPACING', 4);             // fields to the nearest other village
+define('NPC_PLAYER_SPACING', 7);            // fields to the nearest real player's village
+
+// Expansion (NPCExpansion): culture points -> residence 10 -> 3 settlers -> new village
+define('NPC_EXPAND_MAX', 'farmer:6,balanced:4,aggressor:3');  // villages per NPC
+define('NPC_EXPAND_FIELDS', 'farmer:4,balanced:5,aggressor:6'); // average field level before the first expansion
+define('NPC_EXPAND_MIN_POP', 120);          // population of the village the settlers come from
+define('NPC_EXPAND_CP_AHEAD', 43200);       // starts preparing when the culture points are this many real seconds away
+define('NPC_EXPAND_RADIUS', 12);            // new villages within this many fields of the mother village ...
+define('NPC_EXPAND_MIN_DIST', 3);           // ... but not closer than this

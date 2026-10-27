@@ -2,7 +2,7 @@
 /*
  * Creates NPC players through the same database calls as a real sign-up:
  *   Account::Signup()        register, addHeroFace, addHero, clear act
- *   first.php + generateBase  village, fields, units, tech, hero placement
+ *   first.php + generateBase  village (spot: NPCWorld spawn spiral), fields, units, tech, hero
  * Differences from the web flow (on purpose):
  *   - the tribe is stored at register time, so addHero() gets that tribe's
  *     stats (the web flow registers with tribe 0 and picks it later)
@@ -35,9 +35,16 @@ class NPCFactory {
 		$database->addHero($uid);
 		$database->updateUserField($uid, "act", "", 1);
 
-		// first.php -> Account::generateBase($sector, $uid, $name, 1)
-		$sector = rand(1,4);
-		$wid = $database->generateBase($sector);
+		// first.php -> Account::generateBase($sector, $uid, $name, 1), but the spot
+		// comes from the NPC spawn spiral (even spread); generateBase if it is full
+		$wid = NPCWorld::spawnSite();
+		if($wid) {
+			$coor = $database->getCoor($wid);
+			$sector = NPCWorld::sector($coor['x'], $coor['y']);
+		} else {
+			$sector = rand(1,4);
+			$wid = $database->generateBase($sector);
+		}
 		if(!$wid) {
 			$this->error = "no free village slot in sector $sector";
 			return false;

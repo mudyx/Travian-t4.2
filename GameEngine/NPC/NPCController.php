@@ -7,7 +7,7 @@
  * An NPC that is overdue by more than NPC_CATCHUP_THRESHOLD (the game was
  * closed) first replays the missed time in catchUp(); then it acts live: a
  * session of incoming-attack check, one job per build queue, research/training,
- * maybe a raid or revenge - unless it is asleep. When it looks again, how it
+ * expansion step, maybe a raid or revenge - unless it is asleep. When it looks again, how it
  * chooses and when it takes breaks is NPCHuman (in the replay too).
  */
 class NPCController {
@@ -81,6 +81,7 @@ class NPCController {
 			$villages[] = $v;
 		}
 		$watch = NPCDefence::turn($this, $npc, $villages, $now);
+		NPCExpansion::turn($this, $npc, $villages);   // also sets each village's extra plan and reserve
 		$delay = NPC_MAX_SLEEP;
 		foreach($villages as $v) {
 			// Sometimes a free queue simply goes unnoticed this time
@@ -175,6 +176,7 @@ class NPCController {
 			$ends = array();
 			foreach($wrefs as $wref) {
 				$v = NPCVillage::load($wref, $npc['tribe']);
+				NPCExpansion::shape($npc, $v);
 				// Up to one job per build queue at this moment
 				for($k = 0; $k < 2; $k++) {
 					$busy = array('field' => $this->busyAt($free, $wref, 'field', $t),

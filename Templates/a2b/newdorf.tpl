@@ -63,7 +63,7 @@ echo '</pre>';
 <?php
 $mode = CP; 
 $total = count($database->getProfileVillages($session->uid)); 
-$need_cps = ${'cp'.$mode}[$total];
+$need_cps = ${'cp'.$mode}[$total+1];   // points needed for village number $total+1
 $cps = $database->getUserField($session->uid, 'cp',0);
 $wood = round($village->awood);
 $clay = round($village->aclay);

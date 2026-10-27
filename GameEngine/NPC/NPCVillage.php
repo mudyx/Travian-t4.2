@@ -13,6 +13,8 @@ class NPCVillage {
 	public $tech = array();    // s1_tdata row (t2..t49 = 1 when researched)
 	public $research = array();// s1_research rows in progress
 	public $training = array();// s1_training rows (queued units)
+	public $reserve = array(); // resource => amount kept back (saving for settlers), set by NPCExpansion
+	public $plan = array();    // plan steps before the profile plan (expansion, colony start), set by NPCExpansion
 
 	// Once per step: the engine's lazy production update (~10 queries) + the rows
 	public static function load($wref, $tribe) {
@@ -55,6 +57,11 @@ class NPCVillage {
 		return $n;
 	}
 
+	public function isQueuedUnit($unit) {
+		foreach($this->training as $t) { if($t['unit'] == $unit) return true; }
+		return false;
+	}
+
 	public function level($field) { return intval($this->fdata['f'.$field]); }
 	public function type($field)  { return intval($this->fdata['f'.$field.'t']); }
 
@@ -88,6 +95,7 @@ class NPCVillage {
 	}
 
 	public function stock($res) { return floatval($this->vdata[$res]); }        // wood|clay|iron|crop
+	public function spendable($res) { return $this->stock($res) - (isset($this->reserve[$res]) ? $this->reserve[$res] : 0); }
 	public function prod($res)  { return floatval($this->vdata[$res.'p']); }    // per hour, cropp is net of upkeep+pop
 
 	// Crop left per hour after troops, population, the population of queued

@@ -444,9 +444,12 @@ class Units {
 
 		$mode = CP; 
 		$total = count($database->getProfileVillages($session->uid)); 
-		$need_cps = ${'cp'.$mode}[$total];
+		$cpTable = $GLOBALS['cp'.$mode];       // global table (as a local variable it was undefined = no check)
+		$need_cps = $cpTable[$total+1];        // points needed for village number $total+1
 		$cps = $session->cp;
-		if($cps >= $need_cps) {
+		// A free expansion slot (residence/palace) not already promised to settlers on the way
+		$slots = $database->getFreeExpansionSlots($village->wid) - count($database->getMovement(5, $village->wid, 0));
+		if($cps >= $need_cps && $slots > 0) {
 			$founder = $database->getVillage($village->wid);
 			$newvillage = $database->getMInfo($post['s']);
 			$eigen = $database->getCoor($village->wid);

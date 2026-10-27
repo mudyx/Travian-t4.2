@@ -149,10 +149,11 @@ class NPCEconomy {
 	// First two steps of the profile plan (different buildings) that can be done now
 	private static function planCandidates(NPCVillage $v, $profile) {
 		$out = $seen = array();
-		foreach(self::$plans[$profile] as $step) {
+		// Steps of the village's own plan (expansion, colony start) come first
+		foreach(array_merge($v->plan, self::$plans[$profile]) as $step) {
 			$tid = ($step[0] === 'wall') ? NPCRules::wallType($v->tribe) : $step[0];
 			if($v->typeLevel($tid) >= $step[1] || $v->isQueuedType($tid) || isset($seen[$tid])) continue;
-			$c = self::upgradeOrBuild($v, $tid, 'plan '.$tid.'->'.$step[1]);
+			$c = self::upgradeOrBuild($v, $tid, (isset($step[2]) ? $step[2].' ' : 'plan ').$tid.'->'.$step[1]);
 			if(!$c) continue;
 			$out[] = $c;
 			$seen[$tid] = true;

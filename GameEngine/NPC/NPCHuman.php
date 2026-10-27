@@ -38,7 +38,8 @@ class NPCHuman {
 	);
 
 	// How much a reason is worth to a player
-	private static $utility = array('storage' => 3.0, 'lowest production' => 2.0, 'plan' => 2.0, 'whim' => 1.2);
+	private static $utility = array('expansion' => 3.0, 'storage' => 3.0, 'colony' => 2.5, 'lowest production' => 2.0,
+		'plan' => 2.0, 'whim' => 1.2);
 
 	// Buildings a raid-minded player suddenly cares about
 	private static $military = array(12, 13, 16, 19, 20, 21, 22, 31, 32, 33);
@@ -154,8 +155,11 @@ class NPCHuman {
 		$out = $pool = array();
 		foreach($candidates as $i => $c) {
 			if($c['reason'] == 'crop reserve') { $out[] = $c; continue; }
-			$key = strpos($c['reason'], 'whim') === 0 ? 'whim' : (strpos($c['reason'], 'plan') === 0 ? 'plan' : $c['reason']);
-			$u = (isset(self::$utility[$key]) ? self::$utility[$key] : 1) * self::taste($npc, $c) * pow(0.75, $i);
+			$u = 1;
+			foreach(self::$utility as $key => $value) {
+				if(strpos($c['reason'], $key) === 0) { $u = $value; break; }
+			}
+			$u *= self::taste($npc, $c) * pow(0.75, $i);
 			$pool[] = array('c' => $c, 'w' => pow($u, 1 / $temperature));
 		}
 		while($pool) {
@@ -166,6 +170,14 @@ class NPCHuman {
 			unset($pool[$i]);
 		}
 		return $out;
+	}
+
+	// Key of the best-liked option, drawn as in choose(): $scores = key => utility > 0
+	public static function pickBest($scores, $npc) {
+		$temperature = 0.25 + (100 - intval($npc['skill'])) / 100;
+		$weights = array();
+		foreach($scores as $key => $u) { $weights[$key] = pow($u, 1 / $temperature); }
+		return self::pick($weights);
 	}
 
 	private static function taste($npc, $c) {

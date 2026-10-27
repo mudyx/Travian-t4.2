@@ -37,6 +37,9 @@ class NPCActions {
 			return self::NO_CROP;
 		}
 
+		foreach(array('wood', 'clay', 'iron', 'crop') as $res) {
+			if($v->spendable($res) < $cost[$res]) return self::NO_RESOURCES;   // kept back for settlers
+		}
 		if(!self::takeResources($v->wref, $cost)) {
 			return self::NO_RESOURCES;
 		}
@@ -136,6 +139,31 @@ class NPCActions {
 		return $ref;
 	}
 
+	// Sends 3 settlers to found a village on field $to, as Units::Settlers(): 750 of
+	// each resource, movement sort_type 5 at the engine's settler speed; the
+	// automation founds the village on arrival. Culture points and the free slot
+	// are checked by NPCExpansion. Returns the travel time in seconds or false.
+	public static function sendSettlers(NPCVillage $v, $to) {
+		global $database, $generator;
+		$unit = 'u'.($v->tribe * 10);
+		$database->query("UPDATE ".TB_PREFIX."units SET ".$unit." = ".$unit." - 3 WHERE vref = ".$v->wref." AND ".$unit." >= 3");
+		if(mysql_affected_rows($database->connection) != 1) {
+			return false;
+		}
+		$price = array('wood' => 750, 'clay' => 750, 'iron' => 750, 'crop' => 750);
+		$seconds = $generator->procDistanceTime($database->getCoor($v->wref), $database->getCoor($to), 3, 0);
+		if(!self::takeResources($v->wref, $price)) {
+			$database->query("UPDATE ".TB_PREFIX."units SET ".$unit." = ".$unit." + 3 WHERE vref = ".$v->wref);
+			return false;
+		}
+		if(!$database->addMovement(5, $v->wref, intval($to), 0, 0, time() + $seconds)) {
+			$database->query("UPDATE ".TB_PREFIX."units SET ".$unit." = ".$unit." + 3 WHERE vref = ".$v->wref);
+			$database->modifyResource($v->wref, 750, 750, 750, 750, 1);
+			return false;
+		}
+		return $seconds;
+	}
+
 	// Atomic "subtract only if there is enough of everything"
 	public static function takeResources($wref, $cost) {
 		global $database;
@@ -149,7 +177,7 @@ class NPCActions {
 	public static function secondsUntilAffordable(NPCVillage $v, $cost) {
 		$wait = 0;
 		foreach(array('wood', 'clay', 'iron', 'crop') as $res) {
-			$missing = $cost[$res] - $v->stock($res);
+			$missing = $cost[$res] - $v->spendable($res);
 			if($missing <= 0) continue;
 			if($v->prod($res) <= 0) return null;
 			$wait = max($wait, $missing / $v->prod($res) * 3600);

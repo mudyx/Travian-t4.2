@@ -20,7 +20,9 @@
 			} else {
 				$user = $database->getUserField($fromMInfo['owner'],'username',0);
 				$tribe = $database->getUserField($fromMInfo['owner'],'tribe',0);
-				if($toMInfo['occupied'] == 0){
+				// No free expansion slot left (e.g. used up meanwhile): the settlers go home
+				// instead of overwriting exp3 of an existing village
+				if($toMInfo['occupied'] == 0 && $database->getFreeExpansionSlots($data['from']) > 0){
 					$database->setFieldTaken($data['to']);
 					$database->addVillage($data['to'],$fromMInfo['owner'],$user,'0');
 					$database->addResourceFields($data['to'],$database->getVillageType($data['to']));

@@ -27,6 +27,7 @@ class NPCMilitary {
 
 	public static $barracks = array(1, 2, 3, 11, 12, 13, 14, 21, 22);
 	public static $stables = array(4, 5, 6, 15, 16, 23, 24, 25, 26);
+	public static $special = array(9, 10, 19, 20, 29, 30);   // chiefs and settlers: residence
 
 	// Technology::meetRRequirement(): unit => [building type => level]
 	private static $researchReq = array(
@@ -66,10 +67,11 @@ class NPCMilitary {
 		return null;
 	}
 
-	// Building that trains a unit (19 barracks / 20 stable), 0 if none
+	// Building that trains a unit (19 barracks / 20 stable / 25 residence), 0 if none
 	public static function buildingFor($unit) {
 		if(in_array($unit, self::$barracks)) return 19;
 		if(in_array($unit, self::$stables)) return 20;
+		if(in_array($unit, self::$special)) return 25;
 		return 0;
 	}
 
@@ -112,7 +114,8 @@ class NPCMilitary {
 
 	// End of the training queue of the building that trains $unit ($from - now by default - if empty)
 	public static function queueEnd(NPCVillage $v, $unit, $from = null) {
-		$group = self::buildingFor($unit) == 19 ? self::$barracks : self::$stables;
+		$groups = array(19 => self::$barracks, 20 => self::$stables, 25 => self::$special);
+		$group = $groups[self::buildingFor($unit)];
 		$end = $from === null ? time() : $from;
 		foreach($v->training as $t) {
 			if(in_array($t['unit'], $group)) $end = max($end, intval($t['endat']));
@@ -128,8 +131,8 @@ class NPCMilitary {
 		$u = $GLOBALS['u'.$unit];
 		$limits = array();
 		$limits['budget'] = floor($budget / ($u['wood'] + $u['clay'] + $u['iron'] + $u['crop']));
-		$limits['resources'] = floor(min($v->stock('wood') / $u['wood'], $v->stock('clay') / $u['clay'],
-			$v->stock('iron') / $u['iron'], $v->stock('crop') / $u['crop']));
+		$limits['resources'] = max(0, floor(min($v->spendable('wood') / $u['wood'], $v->spendable('clay') / $u['clay'],
+			$v->spendable('iron') / $u['iron'], $v->spendable('crop') / $u['crop'])));
 		$queued = self::queueEnd($v, $unit, $start) - $start;
 		// Refill only once the queue is under half its length: one big batch instead
 		// of a new 1-unit row every turn

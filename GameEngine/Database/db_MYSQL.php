@@ -39,7 +39,7 @@
 				$calcdPTime = min(max($calcdPTime,MINPROTECTION),MAXPROTECTION);
         		$timep = ($time + $calcdPTime);
 				$rand = rand(8900, 9000);
-        		$q = "INSERT INTO " . TB_PREFIX . "users (username,password,access,email,timestamp,tribe,location,act,protect,clp,cp,gold,activateat,ancestor) VALUES ('$username', '$password', " . USER . ", '$email', $time, $tribe, $locate, '$act', $timep, '$rand', 1,0,'$activateat','$ancestor')";
+        		$q = "INSERT INTO " . TB_PREFIX . "users (username,password,access,email,timestamp,tribe,location,act,protect,clp,cp,gold,activateat,ancestor,lastupdate) VALUES ('$username', '$password', " . USER . ", '$email', $time, $tribe, $locate, '$act', $timep, '$rand', 1,0,'$activateat','$ancestor',$time)";
         		if(mysql_query($q, $this->connection)) {
         			return mysql_insert_id($this->connection);
         		} else {
@@ -2894,6 +2894,20 @@
         			$q = "INSERT into ".TB_PREFIX."odata VALUES ('".$basearray['id']."',".$basearray['oasistype'].",0,".$tt.",100,3,'Unoccupied oasis')";
         			$result = mysql_query($q, $this->connection);
         		}
+        	}
+
+        	// Expansion slots of a village not used by a founded village yet:
+        	// residence 10/20 -> 1/2 slots, palace 10/15/20 -> 1/2/3, minus exp1..exp3
+        	public function getFreeExpansionSlots($wref) {
+        		$f = $this->getResourceLevel($wref);
+        		$allowed = 0;
+        		for($i = 19; $i <= 40; $i++) {
+        			if($f['f'.$i.'t'] == 25) $allowed = max($allowed, floor($f['f'.$i] / 10));
+        			if($f['f'.$i.'t'] == 26 && $f['f'.$i] >= 10) $allowed = max($allowed, floor(($f['f'.$i] - 5) / 5));
+        		}
+        		$v = $this->getVillage($wref);
+        		$used = ($v['exp1'] != 0 ? 1 : 0) + ($v['exp2'] != 0 ? 1 : 0) + ($v['exp3'] != 0 ? 1 : 0);
+        		return max(0, min(3, $allowed) - $used);
         	}
 
         	public function getAvailableExpansionTraining() {

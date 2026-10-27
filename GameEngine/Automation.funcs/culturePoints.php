@@ -19,7 +19,11 @@
 				$cp = $database->getVSumField($indi['id'], 'cp');
 				$cprate = ($indi['cpproduction']*HEROATTRSPEED+$indi['itemcpproduction']*ITEMATTRSPEED+100)/100;
 				$cp *= $cprate;
-				$part = (time()-$indi['lastupdate'])/86400;
+				// lastupdate 0 = never counted yet: start counting now instead of
+				// paying out the culture points of every day since 1970
+				$part = $indi['lastupdate'] > 0 ? (time()-$indi['lastupdate'])/86400 : 0;
+				// Speed servers: a day of culture points passes SPEED times faster, like everything else
+				$part *= SPEED;
 				$cp *= $part;
                 $newupdate = time();
                 $q = "UPDATE ".TB_PREFIX."users set cp = cp + $cp, lastupdate = $newupdate where id = '".$indi['id']."'";
