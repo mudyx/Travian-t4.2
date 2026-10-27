@@ -12,6 +12,10 @@
  * like a player would.
  * Units: offensive units only; defensive ones never leave and
  * NPC_RAID_HOME_RESERVE of the offensive ones stays home too.
+ * Reach: like a player, an NPC farms close by at first and further out as the
+ * round goes on (reach()); when there is too little worth taking nearby
+ * (farmed empty, too strong, protected) it looks further (x1.6, x2.5). The
+ * map wraps at its edge, so does the search.
  */
 class NPCAttack {
 
@@ -48,8 +52,17 @@ class NPCAttack {
 		return $units;
 	}
 
+	// Fields this player looks for raid targets in: grows with the round (a few
+	// weeks in, everyone farms further out) and with the player's aggression
+	public static function reach($npc) {
+		$days = max(0, time() - COMMENCE) * SPEED / 86400;
+		$grow = 1 + min(NPC_RAID_REACH_GROWTH, $days / NPC_RAID_REACH_DAYS);
+		return min(NPC_RAID_RADIUS_MAX, NPC_RAID_RADIUS * $grow * (0.8 + 0.4 * intval($npc['aggression']) / 100));
+	}
+
 	// Best raid from this village or null:
-	// array(target, units, capacity, loot, attack, defence, seconds, score, probe)
+	// array(target, units, capacity, loot, attack, defence, seconds, score, probe, far)
+	// Nearby first; with fewer than NPC_RAID_MIN_CHOICE worthwhile targets it looks further.
 	public static function plan($npc, NPCVillage $v) {
 		global $database, $generator;
 		$avail = self::available($v);
@@ -60,41 +73,67 @@ class NPCAttack {
 		$from = $database->getCoor($v->wref);
 		$intel = NPCIntel::forNpc($npc['uid']);
 		$fresh = time() - round(NPC_INTEL_MAX_AGE / SPEED);
-		$best = null;
-		foreach(self::targets($npc, true, $from, NPC_RAID_RADIUS) as $t) {
-			if($generator->procDistance($from, $t) > NPC_RAID_RADIUS) continue;
-			if($database->hasBeginnerProtection($t['wref'])) continue;
-
-			$known = isset($intel[$t['wref']]) && $intel[$t['wref']]['updated'] >= $fresh ? $intel[$t['wref']] : null;
-			if($known) {
-				// Known too strong (whole raid died) or nothing worth taking: leave it
-				if($known['defence_known'] == 2 && $fullAttack < $known['defence'] * NPC_RAID_MIN_ADVANTAGE) continue;
-				if($known['loot'] < 100) continue;
-				$loot = intval($known['loot']);
-				$defence = floatval($known['defence']);
-				$raid = self::compose($avail, $loot, $defence);
-			} else {
-				// Unknown or stale: probe with a minimal raid
-				$loot = NPC_RAID_PROBE_LOOT;
-				$defence = 0;
-				$raid = self::minimum($avail);
+		$reach = self::reach($npc);
+		$options = $seen = $protected = array();
+		foreach(array(1, 1.6, 2.5) as $ring => $f) {
+			$radius = min(NPC_RAID_RADIUS_MAX, $reach * $f);
+			if($ring > 0 && $radius <= $reach * 1.01) break;   // already at the limit
+			foreach(self::targets($npc, true, $from, $radius) as $t) {
+				if(isset($seen[$t['wref']])) continue;
+				$dist = $generator->procDistance($from, $t);
+				if($dist > $radius) continue;
+				$seen[$t['wref']] = true;
+				$known = isset($intel[$t['wref']]) && $intel[$t['wref']]['updated'] >= $fresh ? $intel[$t['wref']] : null;
+				$o = self::option($t, $avail, $fullAttack, $from, $known);
+				if(!$o) continue;
+				$o['far'] = $ring > 0;
+				$o['dist'] = $dist;
+				$options[] = $o;
 			}
-			if(!$raid) continue;
-
-			$seconds = $generator->procDistanceTime($from, $t, $raid['speed'], 1);
-			// A person's judgement, not a formula: sometimes a worse target wins
-			$score = min($loot, $raid['capacity']) / max(60, $seconds) * NPCHuman::noise(0.35);
-			if($best === null || $score > $best['score']) {
-				$best = array('target' => $t, 'units' => $raid['units'], 'capacity' => $raid['capacity'],
-					'loot' => $loot, 'attack' => $raid['attack'], 'defence' => $defence,
-					'seconds' => $seconds, 'score' => $score, 'probe' => $known === null);
+			// Enough to choose from? Beginner protection is checked only for the best ones (a query each)
+			usort($options, function($a, $b) { return $a['score'] < $b['score'] ? 1 : -1; });
+			$open = 0;
+			foreach($options as $o) {
+				$w = $o['target']['wref'];
+				if(!isset($protected[$w])) $protected[$w] = $database->hasBeginnerProtection($w);
+				if(!$protected[$w] && ++$open >= NPC_RAID_MIN_CHOICE) break;
 			}
+			if($open >= NPC_RAID_MIN_CHOICE) break;
 		}
-		return $best;
+		foreach($options as $o) {
+			if(!$protected[$o['target']['wref']]) return $o;
+		}
+		return null;
+	}
+
+	// One target weighed: what to send and what it brings per second, null if not worth it
+	private static function option($t, $avail, $fullAttack, $from, $known) {
+		global $generator;
+		if($known) {
+			// Known too strong (whole raid died) or nothing worth taking: leave it
+			if($known['defence_known'] == 2 && $fullAttack < $known['defence'] * NPC_RAID_MIN_ADVANTAGE) return null;
+			if($known['loot'] < 100) return null;
+			$loot = intval($known['loot']);
+			$defence = floatval($known['defence']);
+			$raid = self::compose($avail, $loot, $defence);
+		} else {
+			// Unknown or stale: probe with a minimal raid
+			$loot = NPC_RAID_PROBE_LOOT;
+			$defence = 0;
+			$raid = self::minimum($avail);
+		}
+		if(!$raid) return null;
+
+		$seconds = $generator->procDistanceTime($from, $t, $raid['speed'], 1);
+		// A person's judgement, not a formula: sometimes a worse target wins
+		$score = min($loot, $raid['capacity']) / max(60, $seconds) * NPCHuman::noise(0.35);
+		return array('target' => $t, 'units' => $raid['units'], 'capacity' => $raid['capacity'],
+			'loot' => $loot, 'attack' => $raid['attack'], 'defence' => $defence,
+			'seconds' => $seconds, 'score' => $score, 'probe' => $known === null);
 	}
 
 	// Villages this NPC may raid (distance and protection are checked in plan())
-	// $from/$radius: only villages in that square of the map (hundreds of NPCs)
+	// $from/$radius: only villages in that square of the map (hundreds of NPCs), across the edge too
 	private static function targets($npc, $cooldown = true, $from = null, $radius = 0) {
 		global $database;
 		$owners = "v.owner IN (SELECT uid FROM ".TB_PREFIX."npc) OR (v.owner = 3 AND v.name = 'Farm')";
@@ -104,10 +143,21 @@ class NPCAttack {
 		$recent = $cooldown ? time() - round(NPC_RAID_TARGET_COOLDOWN / SPEED) : time();
 		return $database->query_return("SELECT v.wref, v.owner, v.name, w.x, w.y FROM ".TB_PREFIX."vdata v".
 			" JOIN ".TB_PREFIX."wdata w ON w.id = v.wref".
-			" WHERE ".($from ? "w.x BETWEEN ".($from['x'] - $radius)." AND ".($from['x'] + $radius).
-			" AND w.y BETWEEN ".($from['y'] - $radius)." AND ".($from['y'] + $radius)." AND " : "").
+			" WHERE ".($from ? self::span('w.x', $from['x'], $radius)." AND ".self::span('w.y', $from['y'], $radius)." AND " : "").
 			"v.owner <> ".intval($npc['uid'])." AND v.owner <> 2 AND v.natar = 0 AND v.pop > 0 AND (".$owners.")".
 			" AND v.wref NOT IN (SELECT to_wref FROM ".TB_PREFIX."npc_raid WHERE uid = ".intval($npc['uid'])." AND sent_at > ".$recent.")");
+	}
+
+	// $col within $r of $c on a map that wraps at WORLD_MAX (as Generator::procDistance)
+	private static function span($col, $c, $r) {
+		$size = 2 * WORLD_MAX + 1;
+		$r = (int)ceil($r);
+		if(2 * $r + 1 >= $size) return '1';
+		$lo = intval($c) - $r;
+		$hi = intval($c) + $r;
+		if($lo < -WORLD_MAX) return "(".$col." >= ".($lo + $size)." OR ".$col." <= ".$hi.")";
+		if($hi > WORLD_MAX) return "(".$col." >= ".$lo." OR ".$col." <= ".($hi - $size).")";
+		return $col." BETWEEN ".$lo." AND ".$hi;
 	}
 
 	// Dodge: all combat units raid a target far enough away that they return after
@@ -124,7 +174,9 @@ class NPCAttack {
 		$left = $arrive - time();
 		$best = null;
 		$longest = 0;
-		foreach(self::targets($npc, false, $from, 2 * NPC_RAID_RADIUS) as $t) {
+		$radius = min(NPC_RAID_RADIUS_MAX, 2 * self::reach($npc));
+		foreach(self::targets($npc, false, $from, $radius) as $t) {
+			if($generator->procDistance($from, $t) > $radius) continue;
 			if($t['wref'] == $attackerWref || $database->hasBeginnerProtection($t['wref'])) continue;
 			if(isset($intel[$t['wref']]) && $intel[$t['wref']]['defence'] * 2 > $raid['attack']) continue;
 			$seconds = $generator->procDistanceTime($from, $t, $raid['speed'], 1);
@@ -158,7 +210,8 @@ class NPCAttack {
 			return array('hopeless' => true);
 		}
 		$from = $database->getCoor($v->wref);
-		if($generator->procDistance($from, $t) > NPC_RAID_RADIUS * 1.5) return null;
+		// Anger carries further than greed, but not across the whole map
+		if($generator->procDistance($from, $t) > min(NPC_RAID_RADIUS_MAX, self::reach($npc) * 1.5)) return null;
 		return array('target' => $t, 'units' => $avail, 'capacity' => $raid['capacity'], 'loot' => $raid['capacity'],
 			'attack' => $raid['attack'], 'defence' => $defence,
 			'seconds' => $generator->procDistanceTime($from, $t, $raid['speed'], 1), 'probe' => false);

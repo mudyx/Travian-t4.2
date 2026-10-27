@@ -461,6 +461,7 @@ class NPCController {
 				$database->getUserField($t['owner'], 'username', 0).') '.$t['x'].'|'.$t['y'].', '.implode(' + ', $units).
 				', capacity '.$plan['capacity'].', expected loot '.$plan['loot'].', attack '.round($plan['attack']).
 				' vs known defence '.round($plan['defence']).(!empty($plan['hero']) ? ', the hero rides along' : '').
+				', '.round($plan['dist'], 1).' fields'.(!empty($plan['far']) ? ' (little worth taking close by, looks further out)' : '').
 				', arrives in '.$plan['seconds'].'s');
 			return;
 		}
@@ -529,7 +530,12 @@ class NPCController {
 
 	// Hourly cleanup of data no human player is part of: finished movements whose
 	// both ends are NPC or Nature villages (+ their attacks/loot rows), the NPCs'
-	// own reports, evaluated raids and old NPC log rows. Players' rows are never touched.
+	// own reports, evaluated raids, old NPC log rows (milestones kept longer), the
+	// NPCs' fading memory (intel, grudges), rows of villages or accounts that are
+	// gone and the NPC heroes' used-up items and NPC-only auctions.
+	// Players' rows are never touched. Deletes run in batches of NPC_CLEANUP_BATCH rows
+	// (a table is locked only briefly) for at most NPC_CLEANUP_SECONDS per hour: a
+	// backlog melts away over a few hours instead of stalling the game.
 	public function housekeeping() {
 		global $database;
 		if(time() - intval(npc_meta_get('cleanup_at', 0)) < NPC_CLEANUP_INTERVAL) {
@@ -558,11 +564,64 @@ class NPCController {
 			$database->query("DELETE FROM ".TB_PREFIX."send WHERE id IN (".implode(',', $chunk).")".
 				" AND id NOT IN (SELECT ref FROM ".TB_PREFIX."movement WHERE sort_type IN (0,1,6))");
 		}
-		$database->query("DELETE FROM ".TB_PREFIX."ndata WHERE uid IN (SELECT uid FROM ".TB_PREFIX."npc)".
-			" AND time < ".(time() - NPC_REPORT_KEEP_HOURS * 3600));
-		$database->query("DELETE FROM ".TB_PREFIX."npc_raid WHERE evaluated = 1 AND sent_at < ".$cutoff);
-		$database->query("DELETE FROM ".TB_PREFIX."npc_log WHERE time < ".(time() - NPC_LOG_KEEP_DAYS * 86400));
-		$database->query("DELETE FROM ".TB_PREFIX."npc_threat WHERE arrive_at < ".(time() - 86400));
-		npc_log("housekeeping: ".count($moveIds)." movement(s), ".count($attackIds)." attack(s), ".count($sendIds)." loot row(s)");
+		$gone = $this->forget();
+		npc_log("housekeeping: ".count($moveIds)." movement(s), ".count($attackIds)." attack(s), ".count($sendIds)." loot row(s), ".
+			$gone['log']." log, ".$gone['memory']." memory, ".$gone['orphans']." orphan, ".$gone['hero']." item/auction row(s)");
+	}
+
+	// The NPC tables' share of housekeeping; returns rows deleted per kind
+	private function forget() {
+		global $database;
+		$now = time();
+		$p = TB_PREFIX;
+		$n = ' LIMIT '.intval(NPC_CLEANUP_BATCH);
+		$npcs = "SELECT uid FROM ".$p."npc";
+		$gone = array('log' => 0, 'memory' => 0, 'orphans' => 0, 'hero' => 0);
+		$deadline = microtime(true) + NPC_CLEANUP_SECONDS;
+		$del = function($kind, $q) use ($database, &$gone, $deadline) {
+			do {
+				$database->query($q);
+				$k = max(0, mysql_affected_rows($database->connection));
+				$gone[$kind] += $k;
+			} while($k >= NPC_CLEANUP_BATCH && microtime(true) < $deadline);
+		};
+
+		$del('log', "DELETE FROM ".$p."ndata WHERE uid IN (".$npcs.") AND time < ".($now - NPC_REPORT_KEEP_HOURS * 3600).$n);
+		// Routine log rows go after a few days, the milestones of an NPC's story after weeks
+		$milestones = "'".implode("','", array_map('trim', explode(',', NPC_LOG_MILESTONES)))."'";
+		$del('log', "DELETE FROM ".$p."npc_log WHERE time < ".($now - NPC_LOG_KEEP_DAYS * 86400).
+			" AND action NOT IN (".$milestones.")".$n);
+		$del('log', "DELETE FROM ".$p."npc_log WHERE time < ".($now - NPC_LOG_MILESTONE_DAYS * 86400).$n);
+
+		// Memory fades like a person's: raid intel nobody refreshed, grudges without a
+		// planned revenge - the more hits from that village, the longer they last
+		$del('memory', "DELETE FROM ".$p."npc_intel WHERE updated < ".($now - NPC_INTEL_KEEP_DAYS * 86400).$n);
+		$del('memory', "DELETE FROM ".$p."npc_grudge WHERE revenge_at = 0 AND last_hit < ".$now." - 86400 * LEAST(".
+			intval(NPC_GRUDGE_MAX_DAYS).", ".intval(NPC_GRUDGE_KEEP_DAYS)." + ".intval(NPC_GRUDGE_DAY_PER_HIT)." * hits)".$n);
+		$del('memory', "DELETE FROM ".$p."npc_raid WHERE sent_at < ".($now - NPC_CLEANUP_KEEP_DAYS * 86400).
+			" AND (evaluated = 1 OR sent_at < ".($now - 7 * 86400).")".$n);   // never fought (movement gone): a week
+		$del('memory', "DELETE FROM ".$p."npc_threat WHERE arrive_at < ".($now - 86400).$n);
+
+		// Villages that were destroyed or changed hands, accounts that were deleted
+		$del('orphans', "DELETE FROM ".$p."npc_intel WHERE wref NOT IN (SELECT wref FROM ".$p."vdata)".$n);
+		$del('orphans', "DELETE FROM ".$p."npc_grudge WHERE revenge_at = 0 AND wref NOT IN (SELECT wref FROM ".$p."vdata)".$n);
+		foreach(array('npc_goal', 'npc_village') as $t) {
+			$del('orphans', "DELETE FROM ".$p.$t." WHERE NOT EXISTS (SELECT 1 FROM ".$p."vdata v WHERE v.wref = ".$p.$t.".wref".
+				" AND v.owner = ".$p.$t.".uid)".$n);
+		}
+		foreach(array('npc_intel', 'npc_grudge', 'npc_raid', 'npc_threat', 'npc_expansion', 'npc_hero', 'npc_log', 'npc') as $t) {
+			$del('orphans', "DELETE FROM ".$p.$t." WHERE uid NOT IN (SELECT id FROM ".$p."users)".$n);
+		}
+
+		// NPC heroes: item rows used up or sold (not worn, not in the bag, not on sale) and
+		// auctions only NPCs took part in. A player's item or auction is never touched.
+		$del('hero', "DELETE FROM ".$p."heroitems WHERE uid IN (".$npcs.") AND num = 0 AND proc = 1".
+			" AND id NOT IN (SELECT helmet FROM ".$p."heroface UNION SELECT body FROM ".$p."heroface".
+			" UNION SELECT leftHand FROM ".$p."heroface UNION SELECT rightHand FROM ".$p."heroface".
+			" UNION SELECT shoes FROM ".$p."heroface UNION SELECT horse FROM ".$p."heroface UNION SELECT bag FROM ".$p."heroface)".
+			" AND id NOT IN (SELECT itemid FROM ".$p."auction WHERE finish = 0)".$n);
+		$del('hero', "DELETE FROM ".$p."auction WHERE finish = 1 AND time < ".($now - NPC_CLEANUP_KEEP_DAYS * 86400).
+			" AND owner IN (".$npcs.") AND (uid = 0 OR uid IN (".$npcs."))".$n);
+		return $gone;
 	}
 }

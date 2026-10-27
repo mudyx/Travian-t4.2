@@ -16,6 +16,7 @@ class NPCVillage {
 	public $training = array();// s1_training rows (queued units)
 	public $reserve = array(); // resource => amount kept back (saving for settlers), set by NPCExpansion
 	public $plan = array();    // plan steps before the profile plan (expansion, colony start), set by NPCExpansion
+	public $alone = false;     // a young colony nobody feeds: fields first, only its own short plan (NPCExpansion::shape)
 
 	// Once per step: the engine's lazy production update (~10 queries) + the rows
 	public static function load($wref, $tribe) {

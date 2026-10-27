@@ -18,6 +18,10 @@
  * free oases nearby, crowding and enemies remembered from attacks - drawn like
  * every other choice (NPCHuman::pickBest).
  * A founded village gets a role (crop / front / eco) and that role's starting plan.
+ * A young colony no merchants come to (the other villages are poor, under attack
+ * or the player doesn't bother) stops waiting after NPC_COLONY_ALONE_HOURS and
+ * fends for itself: fields first, a cranny for its little stock, nothing else,
+ * until its fields carry it (NPC_COLONY_SELF_FIELDS) or help arrives.
  */
 class NPCExpansion {
 
@@ -37,6 +41,9 @@ class NPCExpansion {
 		'front' => array(array(15,3,'colony'), array(10,3,'colony'), array(11,3,'colony'), array(16,1,'colony'),
 			array('wall',5,'colony'), array(19,3,'colony'), array(15,5,'colony')),
 	);
+
+	// What a colony on its own builds besides fields (storage comes by itself when needed)
+	private static $alonePlan = array(array(23,2,'alone'), array(15,3,'alone'));
 
 	private static $cache = array();   // uid => array('state' => row, 'roles' => wref => role)
 
@@ -141,7 +148,52 @@ class NPCExpansion {
 			}
 			break;
 		}
-		foreach($villages as $vv) { self::shape($npc, $vv); }
+		foreach($villages as $vv) {
+			self::shape($npc, $vv);
+			self::notice($ctl, $npc, $vv);
+		}
+	}
+
+	// The player notices a colony is left to itself - or back on its feet
+	private static function notice(NPCController $ctl, $npc, NPCVillage $v) {
+		global $database;
+		$uid = intval($npc['uid']);
+		$c = self::colonies($uid);
+		if(!isset($c[$v->wref])) return;
+		$since = intval($c[$v->wref]['alone_since']);
+		if($v->alone == ($since > 0)) return;
+		$now = time();
+		$database->query("UPDATE ".TB_PREFIX."npc_village SET alone_since = ".($v->alone ? $now : 0)." WHERE wref = ".$v->wref);
+		self::$cache[$uid]['colonies'][$v->wref]['alone_since'] = $v->alone ? $now : 0;
+		if($v->alone) {
+			$help = max(intval($c[$v->wref]['founded']), intval($c[$v->wref]['supplied_at']));
+			$ctl->log($uid, $v->wref, 'colony_alone', $v->vdata['name'].': no merchants for '.round(($now - $help) / 3600, 1).
+				'h, stops waiting - lives off its own fields, a cranny, nothing else for now');
+			NPCHuman::upset($uid, 4);   // a colony left hungry is no fun
+		} else {
+			$fed = $now - intval($c[$v->wref]['supplied_at']) <= NPC_COLONY_ALONE_HOURS * 3600 / SPEED;
+			$ctl->log($uid, $v->wref, 'colony_supplied', $v->vdata['name'].': '.($fed ? 'merchants are coming again' :
+				'its fields carry it now').' after '.round(($now - $since) / 3600, 1).'h on its own, back to its start plan');
+		}
+	}
+
+	// Merchants set out to $wref (NPCMarket): help is coming
+	public static function supplied($uid, $wref) {
+		global $database;
+		$c = self::colonies($uid);
+		if(!isset($c[$wref])) return;
+		$database->query("UPDATE ".TB_PREFIX."npc_village SET supplied_at = ".time()." WHERE wref = ".intval($wref));
+		self::$cache[$uid]['colonies'][$wref]['supplied_at'] = time();
+	}
+
+	// A young colony nobody has sent merchants to for NPC_COLONY_ALONE_HOURS (game time)
+	// and whose fields are still too low to carry its start plan
+	private static function isAlone($uid, NPCVillage $v) {
+		$c = self::colonies($uid);
+		if(!isset($c[$v->wref]) || $v->capital || intval($v->vdata['pop']) >= NPC_COLONY_POP) return false;
+		if($v->avgFieldLevel() >= NPC_COLONY_SELF_FIELDS) return false;
+		$help = max(intval($c[$v->wref]['founded']), intval($c[$v->wref]['supplied_at']));
+		return time() - $help > NPC_COLONY_ALONE_HOURS * 3600 / SPEED;
 	}
 
 	// Gives a village its extra plan steps and reserve for this turn (live and catch-up)
@@ -149,7 +201,9 @@ class NPCExpansion {
 		$uid = intval($npc['uid']);
 		$roles = self::roles($uid);
 		$v->plan = isset($roles[$v->wref]) ? self::$colonyPlans[$roles[$v->wref]] : array();
-		if(!empty($roles)) {
+		$v->alone = isset($roles[$v->wref]) && self::isAlone($uid, $v);
+		if($v->alone) $v->plan = self::$alonePlan;
+		if(!empty($roles) && !$v->alone) {
 			// Several villages: merchants to move resources around (NPCMarket)
 			$v->plan[] = array(17, isset($roles[$v->wref]) ? 1 : 3, 'trade');
 		}
@@ -303,12 +357,19 @@ class NPCExpansion {
 	private static function roles($uid) {
 		global $database;
 		if(!isset(self::$cache[$uid]['roles'])) {
-			$roles = array();
-			foreach($database->query_return("SELECT wref, role FROM ".TB_PREFIX."npc_village WHERE uid = ".intval($uid)) as $r) {
+			$roles = $colonies = array();
+			foreach($database->query_return("SELECT * FROM ".TB_PREFIX."npc_village WHERE uid = ".intval($uid)) as $r) {
 				if(isset(self::$colonyPlans[$r['role']])) $roles[$r['wref']] = $r['role'];
+				$colonies[$r['wref']] = $r;
 			}
 			self::$cache[$uid]['roles'] = $roles;
+			self::$cache[$uid]['colonies'] = $colonies;
 		}
 		return self::$cache[$uid]['roles'];
+	}
+
+	private static function colonies($uid) {
+		self::roles($uid);
+		return self::$cache[$uid]['colonies'];
 	}
 }

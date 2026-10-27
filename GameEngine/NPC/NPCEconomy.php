@@ -66,8 +66,9 @@ class NPCEconomy {
 		// balanced NPCs switch to buildings once fields reach half the main building
 		// level, otherwise they would never grow the village centre.
 		$balancedBuilds = $profile == 'balanced' && $v->avgFieldLevel() >= $v->typeLevel(15) / 2;
-		// Crop and storage problems first; then farmers prefer fields, aggressors buildings
-		if($crisis || ($profile == 'farmer' && !$storage)) {
+		// Crop and storage problems first; then farmers prefer fields, aggressors buildings.
+		// A colony on its own lives off its fields: they come first, whatever the profile.
+		if($crisis || (($profile == 'farmer' || $v->alone) && !$storage)) {
 			$order = array($field, $building);
 		} elseif($storage || $profile == 'aggressor' || $balancedBuilds) {
 			$order = array($building, $field);
@@ -149,8 +150,9 @@ class NPCEconomy {
 	// First two steps of the profile plan (different buildings) that can be done now
 	private static function planCandidates(NPCVillage $v, $profile) {
 		$out = $seen = array();
-		// Steps of the village's own plan (expansion, colony start) come first
-		foreach(array_merge($v->plan, self::$plans[$profile]) as $step) {
+		// Steps of the village's own plan (expansion, colony start) come first; a colony
+		// on its own builds nothing else until its fields can carry it
+		foreach($v->alone ? $v->plan : array_merge($v->plan, self::$plans[$profile]) as $step) {
 			$tid = ($step[0] === 'wall') ? NPCRules::wallType($v->tribe) : $step[0];
 			if($v->typeLevel($tid) >= $step[1] || $v->isQueuedType($tid) || isset($seen[$tid])) continue;
 			$c = self::upgradeOrBuild($v, $tid, (isset($step[2]) ? $step[2].' ' : 'plan ').$tid.'->'.$step[1]);

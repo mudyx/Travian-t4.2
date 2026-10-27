@@ -26,7 +26,15 @@ define('NPC_CATCHUP_MAX', 7 * 86400);       // never replay more than this
 define('NPC_CLEANUP_INTERVAL', 3600);       // seconds between cleanups
 define('NPC_CLEANUP_KEEP_DAYS', 3);         // processed NPC-vs-NPC/farm movements, attacks, raids
 define('NPC_REPORT_KEEP_HOURS', 24);        // NPCs' own reports (nobody reads them)
-define('NPC_LOG_KEEP_DAYS', 3);             // s1_npc_log (hundreds of NPCs write a lot)
+define('NPC_LOG_KEEP_DAYS', 3);             // s1_npc_log (hundreds of NPCs write a lot) ...
+define('NPC_LOG_MILESTONE_DAYS', 60);       // ... except milestones (joined, founded, oasis, quit, revenge, errors)
+define('NPC_LOG_MILESTONES', 'created,founded,settle,settle_failed,oasis_taken,absent,back,quit,grudge,revenge,hero_revive,colony_alone,colony_supplied,error');
+define('NPC_INTEL_KEEP_DAYS', 7);           // raid intel not refreshed for this long is forgotten (real days)
+define('NPC_GRUDGE_KEEP_DAYS', 3);          // a grudge without revenge fades after this many real days ...
+define('NPC_GRUDGE_DAY_PER_HIT', 1);        // ... + this many per hit taken from that village ...
+define('NPC_GRUDGE_MAX_DAYS', 14);          // ... but never longer
+define('NPC_CLEANUP_BATCH', 5000);          // rows deleted per query (short table locks) ...
+define('NPC_CLEANUP_SECONDS', 1.0);         // ... batches go on while the hourly cleanup has used less than this
 
 // Economy
 define('NPC_STORAGE_HOURS', 3);             // warehouse/granary should hold at least this many hours of production
@@ -41,7 +49,11 @@ define('NPC_RAID_PROFILES', 'balanced,aggressor'); // farmers never raid
 define('NPC_RAID_INTERVAL', 3600);          // base pause between raids of one NPC; x (1.5 - aggression/100)
 define('NPC_RAID_TARGET_COOLDOWN', 7200);   // the same NPC doesn't hit the same target again before this
 define('NPC_RAID_MAX_ACTIVE', 2);           // raids of one NPC on the way at the same time
-define('NPC_RAID_RADIUS', 25);              // fields
+define('NPC_RAID_RADIUS', 25);              // fields a player looks for raid targets at the round start (x 0.8..1.2 by aggression) ...
+define('NPC_RAID_REACH_DAYS', 60);          // ... growing by the same again over this many game days (by mid-round people farm further out) ...
+define('NPC_RAID_REACH_GROWTH', 1.4);       // ... growth capped here (1.4 = +140 %)
+define('NPC_RAID_MIN_CHOICE', 3);           // fewer worthwhile targets in reach: looks further (x1.6, x2.5) ...
+define('NPC_RAID_RADIUS_MAX', 70);          // ... but never beyond this
 define('NPC_RAID_HOME_RESERVE', 0.3);       // share of offensive units that always stays home (defensive units never leave)
 define('NPC_RAID_MIN_UNITS', 5);            // smaller raids are not worth it
 define('NPC_RAID_MIN_ADVANTAGE', 1.5);      // attack must be this many times the target's known defence
@@ -93,6 +105,9 @@ define('NPC_EXPAND_MIN_POP', 120);          // population of the village the set
 define('NPC_EXPAND_CP_AHEAD', 43200);       // starts preparing when the culture points are this many real seconds away
 define('NPC_EXPAND_RADIUS', 12);            // new villages within this many fields of the mother village ...
 define('NPC_EXPAND_MIN_DIST', 3);           // ... but not closer than this
+define('NPC_COLONY_ALONE_HOURS', 8);        // a young colony no merchants came to for this long (game hours) fends for itself ...
+define('NPC_COLONY_SELF_FIELDS', 3);        // ... until its fields average this level (then its normal start plan)
+define('NPC_COLONY_POP', 300);              // a colony counts as young below this population
 
 // The world's population (NPCWorld::grow, part of the background NPC tick). Real
 // time, like people. Rates are averages of random processes - nothing is filled up to a number.

@@ -64,6 +64,7 @@ class NPCMarket {
 			if(!$best) continue;
 			$used = (int)ceil(array_sum($best['ship']) / $load);
 			if(!NPCActions::sendResources($from, $best['to']->wref, $best['ship'], $used, $best['seconds'])) continue;
+			NPCExpansion::supplied($npc['uid'], $best['to']->wref);
 			foreach(self::$res as $r) {
 				$surplus[$from->wref][$r] -= $best['ship'][$r];
 				$need[$best['to']->wref][$r] -= $best['ship'][$r];
