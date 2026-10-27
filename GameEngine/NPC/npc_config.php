@@ -12,7 +12,7 @@ define('NPC_PAGE_BUDGET', 0.25);            // seconds of NPC work a normal page
 define('NPC_PAGE_MAX_STEPS', 20);
 define('NPC_PING_BUDGET', 2.0);             // the built-in PHP server is single-threaded - keep it short
 define('NPC_PING_MAX_STEPS', 300);
-define('NPC_MAX_PER_RUN', 50);              // optional CLI runner (npc_runner.php)
+define('NPC_MAX_PER_RUN', 200);             // CLI runner (npc_runner.php, the NPC motor) - up to 800 NPCs
 define('NPC_RUN_TIME_BUDGET', 50);
 define('NPC_AUTOMATION_LOCK_WAIT', 10);     // seconds the CLI runner waits for the game automation lock
 
@@ -44,7 +44,7 @@ define('NPC_ARMY_BUDGET_CAP_HOURS', 6);     // the army budget never holds more 
 define('NPC_TRAIN_QUEUE_SECONDS', 1800);    // don't queue more training than this per building
 
 // Raids (attack_type 4). Times are game seconds at speed 1 and get divided by SPEED.
-define('NPC_ATTACK_REAL_PLAYERS', false);   // false = NPCs raid only farms and other NPCs
+define('NPC_ATTACK_REAL_PLAYERS', true);    // NPCs raid (and take revenge on) real players too; false = only farms and other NPCs
 define('NPC_RAID_PROFILES', 'balanced,aggressor'); // farmers never raid
 define('NPC_RAID_INTERVAL', 3600);          // base pause between raids of one NPC; x (1.5 - aggression/100)
 define('NPC_RAID_TARGET_COOLDOWN', 7200);   // the same NPC doesn't hit the same target again before this
@@ -111,7 +111,7 @@ define('NPC_COLONY_POP', 300);              // a colony counts as young below th
 
 // The world's population (NPCWorld::grow, part of the background NPC tick). Real
 // time, like people. Rates are averages of random processes - nothing is filled up to a number.
-define('NPC_MAX', 0);                       // server size the rates scale with; 0 = by map size (WORLD_MAX x 4, kept within 160..400)
+define('NPC_MAX', 800);                     // server size the rates scale with; 0 = by map size (WORLD_MAX x 4, kept within 160..400)
 define('NPC_JOIN_LAUNCH', 0.08);            // people waiting for the server to open (x NPC_MAX, on average) ...
 define('NPC_JOIN_LAUNCH_MINUTES', 20);      // ... come in its first minutes, whatever the hour (time constant)
 define('NPC_JOIN_RUSH', 0.3);               // sign-ups (x NPC_MAX, on average) in the launch rush ...
