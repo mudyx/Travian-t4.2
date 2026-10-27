@@ -80,7 +80,8 @@ class NPCMilitary {
 
 	// Unit to train now: the role that is under its target share, best available unit
 	// of that role; falls back to the other role when nothing of the wanted one exists.
-	public static function trainCandidate(NPCVillage $v, $profile) {
+	// $prefer ('off'/'def') overrides the share (defenders before an attack).
+	public static function trainCandidate(NPCVillage $v, $profile, $prefer = null) {
 		if(!isset(self::$units[$v->tribe])) return null;
 		$roles = self::$units[$v->tribe];
 		$pop = array('off' => 0, 'def' => 0);
@@ -91,7 +92,7 @@ class NPCMilitary {
 		}
 		$total = $pop['off'] + $pop['def'];
 		$current = $total > 0 ? $pop['off'] / $total : 0;
-		$want = ($current < self::$offShare[$profile]) ? 'off' : 'def';
+		$want = $prefer ? $prefer : (($current < self::$offShare[$profile]) ? 'off' : 'def');
 		foreach(array($want, $want == 'off' ? 'def' : 'off') as $role) {
 			foreach($roles[$role] as $unit) {
 				if(self::canTrain($v, $unit)) return array('unit' => $unit, 'role' => $role);
@@ -121,7 +122,8 @@ class NPCMilitary {
 
 	// How many units to train: limited by budget, stock, queue length and crop reserve.
 	// Returns array(amount, reason of the tightest limit).
-	public static function trainAmount(NPCVillage $v, $unit, $budget, $cropReserve, $start = null) {
+	// $force (stock about to be stolen): no half-queue rule, queue up to twice as long.
+	public static function trainAmount(NPCVillage $v, $unit, $budget, $cropReserve, $start = null, $force = false) {
 		$start = $start === null ? time() : $start;
 		$u = $GLOBALS['u'.$unit];
 		$limits = array();
@@ -131,8 +133,9 @@ class NPCMilitary {
 		$queued = self::queueEnd($v, $unit, $start) - $start;
 		// Refill only once the queue is under half its length: one big batch instead
 		// of a new 1-unit row every turn
-		$limits['queue'] = ($queued > NPC_TRAIN_QUEUE_SECONDS / 2) ? 0 :
-			floor((NPC_TRAIN_QUEUE_SECONDS - $queued) * 1000 / max(1, self::eachTime($v, $unit)));
+		$queueMax = $force ? 2 * NPC_TRAIN_QUEUE_SECONDS : NPC_TRAIN_QUEUE_SECONDS;
+		$limits['queue'] = (!$force && $queued > NPC_TRAIN_QUEUE_SECONDS / 2) ? 0 :
+			max(0, floor(($queueMax - $queued) * 1000 / max(1, self::eachTime($v, $unit))));
 		$limits['crop'] = floor(($v->freeCrop() - $cropReserve) / $u['pop']);
 		$amount = min($limits);
 		return array(max(0, (int)$amount), array_search($amount, $limits));

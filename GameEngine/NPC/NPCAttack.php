@@ -21,7 +21,7 @@ class NPCAttack {
 
 	// Seconds between raids of this NPC: aggression 80 -> 0.7 x base, 20 -> 1.3 x base
 	public static function interval($npc) {
-		return round(NPC_RAID_INTERVAL / SPEED * (1.5 - $npc['aggression'] / 100));
+		return round(NPC_RAID_INTERVAL / SPEED * (1.5 - $npc['aggression'] / 100) * NPCHuman::factor($npc, 'raid'));
 	}
 
 	// Raids of this NPC still on the way there or back
@@ -33,13 +33,16 @@ class NPCAttack {
 		return intval($row[0]);
 	}
 
-	// Offensive units that may leave: unit => count (home reserve already kept back)
-	public static function available(NPCVillage $v) {
+	// Offensive units that may leave: unit => count (home reserve already kept back).
+	// $all: every combat unit at home, defenders too (dodging an attack)
+	public static function available(NPCVillage $v, $all = false) {
 		$units = array();
 		if(!isset(NPCMilitary::$units[$v->tribe])) return $units;
-		foreach(NPCMilitary::$units[$v->tribe]['off'] as $unit) {
+		$list = NPCMilitary::$units[$v->tribe]['off'];
+		if($all) $list = array_unique(array_merge($list, NPCMilitary::$units[$v->tribe]['def']));
+		foreach($list as $unit) {
 			$home = isset($v->units['u'.$unit]) ? intval($v->units['u'.$unit]) : 0;
-			$free = (int)floor($home * (1 - NPC_RAID_HOME_RESERVE));
+			$free = $all ? $home : (int)floor($home * (1 - NPC_RAID_HOME_RESERVE));
 			if($free > 0) $units[$unit] = $free;
 		}
 		return $units;
@@ -79,7 +82,8 @@ class NPCAttack {
 			if(!$raid) continue;
 
 			$seconds = $generator->procDistanceTime($from, $t, $raid['speed'], 1);
-			$score = min($loot, $raid['capacity']) / max(60, $seconds);
+			// A person's judgement, not a formula: sometimes a worse target wins
+			$score = min($loot, $raid['capacity']) / max(60, $seconds) * NPCHuman::noise(0.35);
 			if($best === null || $score > $best['score']) {
 				$best = array('target' => $t, 'units' => $raid['units'], 'capacity' => $raid['capacity'],
 					'loot' => $loot, 'attack' => $raid['attack'], 'defence' => $defence,
@@ -90,17 +94,82 @@ class NPCAttack {
 	}
 
 	// Villages this NPC may raid (distance and protection are checked in plan())
-	private static function targets($npc) {
+	private static function targets($npc, $cooldown = true) {
 		global $database;
 		$owners = "v.owner IN (SELECT uid FROM ".TB_PREFIX."npc) OR (v.owner = 3 AND v.name = 'Farm')";
 		if(NPC_ATTACK_REAL_PLAYERS) {
 			$owners .= " OR (v.owner > 4 AND v.owner NOT IN (SELECT uid FROM ".TB_PREFIX."npc))";
 		}
-		$recent = time() - round(NPC_RAID_TARGET_COOLDOWN / SPEED);
+		$recent = $cooldown ? time() - round(NPC_RAID_TARGET_COOLDOWN / SPEED) : time();
 		return $database->query_return("SELECT v.wref, v.owner, v.name, w.x, w.y FROM ".TB_PREFIX."vdata v".
 			" JOIN ".TB_PREFIX."wdata w ON w.id = v.wref".
 			" WHERE v.owner <> ".intval($npc['uid'])." AND v.owner <> 2 AND v.natar = 0 AND v.pop > 0 AND (".$owners.")".
 			" AND v.wref NOT IN (SELECT to_wref FROM ".TB_PREFIX."npc_raid WHERE uid = ".intval($npc['uid'])." AND sent_at > ".$recent.")");
+	}
+
+	// Dodge: all combat units raid a target far enough away that they return after
+	// the hit at $arrive. Shortest such trip wins; targets known to be strong and
+	// the attacker are avoided. If every target is still too close (the hit is far
+	// off), returns array('wait' => when to look again); null = no army / no target.
+	public static function dodgePlan($npc, NPCVillage $v, $arrive, $attackerWref) {
+		global $database, $generator;
+		$units = self::available($v, true);
+		if(array_sum($units) < NPC_RAID_MIN_UNITS) return null;
+		$raid = self::totals($units);
+		$from = $database->getCoor($v->wref);
+		$intel = NPCIntel::forNpc($npc['uid']);
+		$left = $arrive - time();
+		$best = null;
+		$longest = 0;
+		foreach(self::targets($npc, false) as $t) {
+			if($t['wref'] == $attackerWref || $database->hasBeginnerProtection($t['wref'])) continue;
+			if(isset($intel[$t['wref']]) && $intel[$t['wref']]['defence'] * 2 > $raid['attack']) continue;
+			$seconds = $generator->procDistanceTime($from, $t, $raid['speed'], 1);
+			$longest = max($longest, 2 * $seconds);
+			if(2 * $seconds < $left + 30) continue;
+			if($best === null || $seconds < $best['seconds']) $best = array('target' => $t, 'seconds' => $seconds);
+		}
+		if($best === null) {
+			return $longest > 0 ? array('wait' => $arrive - max(120, round($longest * 0.6))) : null;
+		}
+		return array('target' => $best['target'], 'units' => $units, 'capacity' => $raid['capacity'],
+			'loot' => $raid['capacity'], 'attack' => $raid['attack'], 'defence' => 0,
+			'seconds' => $best['seconds'], 'probe' => false);
+	}
+
+	// Revenge on the village $wref with all offensive units that may leave (ignores
+	// the target cooldown). null = not possible now (units, range, protection);
+	// array('hopeless' => true) = the NPC's intel says it would lose.
+	public static function revengePlan($npc, NPCVillage $v, $wref) {
+		global $database, $generator;
+		$rows = $database->query_return("SELECT v.wref, v.owner, v.name, w.x, w.y FROM ".TB_PREFIX."vdata v".
+			" JOIN ".TB_PREFIX."wdata w ON w.id = v.wref WHERE v.wref = ".intval($wref)." AND v.owner <> ".intval($npc['uid']));
+		if(empty($rows) || $database->hasBeginnerProtection($wref)) return null;
+		$t = $rows[0];
+		$avail = self::available($v);
+		if(array_sum($avail) < NPC_RAID_MIN_UNITS) return null;
+		$raid = self::totals($avail);
+		$intel = NPCIntel::forNpc($npc['uid']);
+		$defence = isset($intel[$wref]) ? floatval($intel[$wref]['defence']) : 0;
+		if(isset($intel[$wref]) && $intel[$wref]['defence_known'] == 2 && $raid['attack'] < $defence) {
+			return array('hopeless' => true);
+		}
+		$from = $database->getCoor($v->wref);
+		if($generator->procDistance($from, $t) > NPC_RAID_RADIUS * 1.5) return null;
+		return array('target' => $t, 'units' => $avail, 'capacity' => $raid['capacity'], 'loot' => $raid['capacity'],
+			'attack' => $raid['attack'], 'defence' => $defence,
+			'seconds' => $generator->procDistanceTime($from, $t, $raid['speed'], 1), 'probe' => false);
+	}
+
+	// Attack, capacity and slowest speed of a group of units
+	private static function totals($units) {
+		$out = array('attack' => 0, 'capacity' => 0, 'speed' => null);
+		foreach($units as $unit => $n) {
+			$out['attack'] += $n * $GLOBALS['u'.$unit]['atk'];
+			$out['capacity'] += $n * $GLOBALS['u'.$unit]['cap'];
+			$out['speed'] = $out['speed'] === null ? $GLOBALS['u'.$unit]['speed'] : min($out['speed'], $GLOBALS['u'.$unit]['speed']);
+		}
+		return $out;
 	}
 
 	// Smallest share of the available units that both carries the loot (+20 %) and

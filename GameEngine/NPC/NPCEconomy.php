@@ -55,8 +55,10 @@ class NPCEconomy {
 		if(!isset(self::$plans[$profile])) {
 			$profile = 'balanced';
 		}
-		$field = ($fieldBusy || $v->queueBusy(true)) ? null : self::fieldCandidate($v, $profile);
-		$building = ($buildingBusy || $v->queueBusy(false)) ? null : self::buildingCandidate($v, $profile, $field);
+		$fields = ($fieldBusy || $v->queueBusy(true)) ? array() : self::fieldCandidates($v, $profile);
+		$field = $fields ? $fields[0] : null;
+		$buildings = ($buildingBusy || $v->queueBusy(false)) ? array() : self::buildingCandidates($v, $profile, $field);
+		$building = $buildings ? $buildings[0] : null;
 
 		$crisis = $field && $field['reason'] == 'crop reserve';
 		$storage = $building && $building['reason'] == 'storage';
@@ -72,27 +74,31 @@ class NPCEconomy {
 		} else {
 			$order = array($field, $building);
 		}
-		return array_values(array_filter($order));
+		// The runners-up (second-weakest resource, next plan step) go last;
+		// NPCHuman::choose() still picks them now and then
+		return array_values(array_filter(array_merge($order, array_slice($fields, 1), array_slice($buildings, 1))));
 	}
 
-	private static function fieldCandidate(NPCVillage $v, $profile) {
+	// Lowest field of the weakest resource, then one of the second weakest ('whim')
+	private static function fieldCandidates(NPCVillage $v, $profile) {
 		$reserve = self::$cropReserve[$profile] * ($v->prod('wood') + $v->prod('clay') + $v->prod('iron'));
 		if($v->freeCrop() < $reserve) {
-			$type = 4;
-			$reason = 'crop reserve';
-		} else {
-			$type = 0;
-			$best = null;
-			foreach(self::$weights[$profile] as $t => $w) {
-				if(self::lowestField($v, $t) == 0) continue;   // all fields of this type maxed
-				$score = $v->fieldProd($t) / $w;
-				if($best === null || $score < $best) { $best = $score; $type = $t; }
-			}
-			$reason = 'lowest production';
+			$id = self::lowestField($v, 4);
+			return $id ? array(array('field' => $id, 'tid' => 4, 'level' => $v->level($id) + 1, 'reason' => 'crop reserve')) : array();
 		}
-		$id = $type ? self::lowestField($v, $type) : 0;
-		if(!$id) return null;
-		return array('field' => $id, 'tid' => $type, 'level' => $v->level($id) + 1, 'reason' => $reason);
+		$scores = array();
+		foreach(self::$weights[$profile] as $t => $w) {
+			if(self::lowestField($v, $t) == 0) continue;   // all fields of this type maxed
+			$scores[$t] = $v->fieldProd($t) / $w;
+		}
+		asort($scores);
+		$out = array();
+		foreach(array_slice(array_keys($scores), 0, 2) as $type) {
+			$id = self::lowestField($v, $type);
+			$out[] = array('field' => $id, 'tid' => $type, 'level' => $v->level($id) + 1,
+				'reason' => $out ? 'whim' : 'lowest production');
+		}
+		return $out;
 	}
 
 	// Lowest, not maxed, not queued field of a resource type
@@ -106,9 +112,18 @@ class NPCEconomy {
 		return $best;
 	}
 
-	private static function buildingCandidate(NPCVillage $v, $profile, $fieldCandidate) {
+	// Storage if needed, else the next plan step; the step after it as a 'whim'
+	private static function buildingCandidates(NPCVillage $v, $profile, $fieldCandidate) {
+		$plan = self::planCandidates($v, $profile);
+		$planned = $plan ? $plan[0] : null;
+		$c = self::storageCandidate($v, $fieldCandidate, $planned);
+		if($c) return $planned ? array($c, $planned) : array($c);
+		if(isset($plan[1])) $plan[1]['reason'] = 'whim, '.$plan[1]['reason'];
+		return $plan;
+	}
+
+	private static function storageCandidate(NPCVillage $v, $fieldCandidate, $planned) {
 		// Biggest single cost we are about to need, to check it fits the storage
-		$planned = self::planCandidate($v, $profile);
 		$need = array('res' => 0, 'crop' => 0);
 		foreach(array($fieldCandidate, $planned) as $c) {
 			if(!$c) continue;
@@ -128,18 +143,22 @@ class NPCEconomy {
 			$c = self::upgradeOrBuild($v, 11, 'storage');
 			if($c) return $c;
 		}
-		return $planned;
+		return null;
 	}
 
-	// First step of the profile plan that can be done now
-	private static function planCandidate(NPCVillage $v, $profile) {
+	// First two steps of the profile plan (different buildings) that can be done now
+	private static function planCandidates(NPCVillage $v, $profile) {
+		$out = $seen = array();
 		foreach(self::$plans[$profile] as $step) {
 			$tid = ($step[0] === 'wall') ? NPCRules::wallType($v->tribe) : $step[0];
-			if($v->typeLevel($tid) >= $step[1] || $v->isQueuedType($tid)) continue;
+			if($v->typeLevel($tid) >= $step[1] || $v->isQueuedType($tid) || isset($seen[$tid])) continue;
 			$c = self::upgradeOrBuild($v, $tid, 'plan '.$tid.'->'.$step[1]);
-			if($c) return $c;
+			if(!$c) continue;
+			$out[] = $c;
+			$seen[$tid] = true;
+			if(count($out) == 2) break;
 		}
-		return null;
+		return $out;
 	}
 
 	// Upgrade the existing building of a type, or construct it if allowed
