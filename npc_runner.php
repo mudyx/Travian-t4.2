@@ -13,6 +13,7 @@ require NPC_ENGINE.'/NPC/npc_config.php';
 require NPC_ENGINE.'/NPC/NPCVillage.php';
 require NPC_ENGINE.'/NPC/NPCRules.php';
 require NPC_ENGINE.'/NPC/NPCEconomy.php';
+require NPC_ENGINE.'/NPC/NPCMilitary.php';
 require NPC_ENGINE.'/NPC/NPCActions.php';
 require NPC_ENGINE.'/NPC/NPCController.php';
 

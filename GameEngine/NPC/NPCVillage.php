@@ -9,6 +9,10 @@ class NPCVillage {
 	public $vdata = array();   // s1_vdata row
 	public $fdata = array();   // s1_fdata row
 	public $jobs = array();    // s1_bdata rows of this village
+	public $units = array();   // s1_units row (troops at home)
+	public $tech = array();    // s1_tdata row (t2..t49 = 1 when researched)
+	public $research = array();// s1_research rows in progress
+	public $training = array();// s1_training rows (queued units)
 
 	public static function load($wref, $tribe) {
 		global $database;
@@ -19,8 +23,29 @@ class NPCVillage {
 		$v->vdata = $database->getVillage($wref);
 		$v->fdata = $database->getResourceLevel($wref);
 		$v->jobs = $database->getJobs($wref);
+		$v->units = $database->getUnit($wref);
+		$v->tech = $database->getTech($wref);
+		$v->research = $database->getResearching($wref);
+		$v->training = $database->getTraining($wref);
 		$v->capital = intval($v->vdata['capital']);
 		return $v;
+	}
+
+	// Units without research: the first unit of each tribe and the settler (Technology::trainUnit)
+	public function isResearched($unit) {
+		return ($unit % 10) <= 1 || (isset($this->tech['t'.$unit]) && $this->tech['t'.$unit] == 1);
+	}
+
+	public function isResearching() {
+		foreach($this->research as $r) { if(substr($r['tech'], 0, 1) == 't') return true; }
+		return false;
+	}
+
+	// Units at home plus units still in the training queue
+	public function unitCount($unit) {
+		$n = isset($this->units['u'.$unit]) ? intval($this->units['u'.$unit]) : 0;
+		foreach($this->training as $t) { if($t['unit'] == $unit) $n += intval($t['amt']); }
+		return $n;
 	}
 
 	public function level($field) { return intval($this->fdata['f'.$field]); }
@@ -58,16 +83,25 @@ class NPCVillage {
 	public function stock($res) { return floatval($this->vdata[$res]); }        // wood|clay|iron|crop
 	public function prod($res)  { return floatval($this->vdata[$res.'p']); }    // per hour, cropp is net of upkeep+pop
 
-	// Crop left per hour after troops, population and the population of queued jobs.
+	// Crop left per hour after troops, population, the population of queued
+	// jobs and the upkeep of units still in the training queue.
 	// Stricter than Building::canBuild(), which adds the troop upkeep back and so
 	// ignores the army - an NPC must never starve its own troops.
 	public function freeCrop() {
-		$soonPop = 0;
+		$soon = 0;
 		foreach($this->jobs as $job) {
 			$data = $GLOBALS['bid'.$job['type']];
-			if(isset($data[$job['level']]['pop'])) $soonPop += $data[$job['level']]['pop'];
+			if(isset($data[$job['level']]['pop'])) $soon += $data[$job['level']]['pop'];
 		}
-		return $this->prod('crop') - $soonPop;
+		foreach($this->training as $t) {
+			$soon += intval($t['amt']) * intval($t['pop']);
+		}
+		return $this->prod('crop') - $soon;
+	}
+
+	// Income per hour used for the army budget (negative crop counts as 0)
+	public function income() {
+		return $this->prod('wood') + $this->prod('clay') + $this->prod('iron') + max(0, $this->prod('crop'));
 	}
 
 	public function avgFieldLevel() {

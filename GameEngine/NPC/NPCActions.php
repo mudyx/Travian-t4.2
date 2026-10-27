@@ -49,6 +49,46 @@ class NPCActions {
 		return self::QUEUED;
 	}
 
+	// Starts academy research of $unit (Technology::researchTech()). Returns cost or false.
+	public static function queueResearch(NPCVillage $v, $unit) {
+		global $database;
+		$data = $GLOBALS['r'.$unit];
+		$academy = $v->typeLevel(22);
+		$time = time() + round(($data['time'] * ($GLOBALS['bid22'][$academy]['attri'] / 100)) / SPEED);
+		if(!self::takeResources($v->wref, $data)) {
+			return false;
+		}
+		if(!$database->addResearch($v->wref, 't'.intval($unit), $time)) {
+			$database->modifyResource($v->wref, $data['wood'], $data['clay'], $data['iron'], $data['crop'], 1);
+			return false;
+		}
+		return array('wood' => $data['wood'], 'clay' => $data['clay'], 'iron' => $data['iron'], 'crop' => $data['crop'],
+			'time' => $time - time());
+	}
+
+	// Queues $amt units behind the building's current queue, writing the same row
+	// as $database->trainUnit() (which can't be used: it needs the session's $village).
+	// Returns the total cost or false.
+	public static function queueTraining(NPCVillage $v, $unit, $amt) {
+		global $database;
+		$u = $GLOBALS['u'.$unit];
+		$cost = array('wood' => $u['wood'] * $amt, 'clay' => $u['clay'] * $amt, 'iron' => $u['iron'] * $amt, 'crop' => $u['crop'] * $amt);
+		$each = NPCMilitary::eachTime($v, $unit);
+		if(!self::takeResources($v->wref, $cost)) {
+			return false;
+		}
+		$start = NPCMilitary::queueEnd($v, $unit);
+		$endat = $start + round($each * $amt / 1000);
+		$ok = $database->query("INSERT INTO ".TB_PREFIX."training VALUES (0, ".$v->wref.", ".intval($unit).", ".intval($amt).", ".
+			intval($u['pop']).", ".$start.", ".intval($each).", ".$start.", ".$endat.")");
+		if(!$ok) {
+			$database->modifyResource($v->wref, $cost['wood'], $cost['clay'], $cost['iron'], $cost['crop'], 1);
+			return false;
+		}
+		$cost['time'] = $endat - time();
+		return $cost;
+	}
+
 	// Atomic "subtract only if there is enough of everything"
 	public static function takeResources($wref, $cost) {
 		global $database;

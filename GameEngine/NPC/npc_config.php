@@ -13,5 +13,9 @@ define('NPC_MAX_SLEEP', 600);               // longest pause (s) of an NPC that 
 // Economy
 define('NPC_STORAGE_HOURS', 3);             // warehouse/granary should hold at least this many hours of production
 
+// Army (shares of income per profile are in NPCMilitary::$armyShare)
+define('NPC_ARMY_BUDGET_CAP_HOURS', 6);     // the army budget never holds more than this many hours of its share
+define('NPC_TRAIN_QUEUE_SECONDS', 1800);    // don't queue more training than this per building
+
 // Attack targets (used from the attack phase on)
 define('NPC_ATTACK_REAL_PLAYERS', false);   // false = NPCs raid only farms and other NPCs

@@ -48,11 +48,83 @@ class NPCController {
 	private function act($npc) {
 		global $database;
 		$delay = NPC_MAX_SLEEP;
-		foreach($database->getVillagesID($npc['uid']) as $wref) {
+		$wrefs = $database->getVillagesID($npc['uid']);
+		$income = 0;
+		foreach($wrefs as $wref) {
 			$village = NPCVillage::load($wref, $npc['tribe']);
+			$income += $village->income();
 			$delay = min($delay, $this->economyTurn($npc, $village));
 		}
+		$budget = $this->topUpBudget($npc, $income);
+		foreach($wrefs as $wref) {
+			// Reload: the economy turn may just have spent resources
+			$village = NPCVillage::load($wref, $npc['tribe']);
+			$budget = $this->militaryTurn($npc, $village, $budget);
+		}
+		$database->query("UPDATE ".TB_PREFIX."npc SET army_budget = ".floatval($budget).", budget_at = ".time().
+			" WHERE uid = ".intval($npc['uid']));
 		return $delay;
+	}
+
+	// Adds the profile's share of income for the time since the last top-up.
+	// Capped at NPC_ARMY_BUDGET_CAP_HOURS of that share (an existing larger budget is kept).
+	private function topUpBudget($npc, $income) {
+		$share = isset(NPCMilitary::$armyShare[$npc['profile']]) ? NPCMilitary::$armyShare[$npc['profile']] : 0;
+		$budget = floatval($npc['army_budget']);
+		$since = $npc['budget_at'] > 0 ? time() - $npc['budget_at'] : 0;
+		$add = $share * $income * $since / 3600;
+		$cap = $share * $income * NPC_ARMY_BUDGET_CAP_HOURS;
+		return min($budget + $add, max($cap, $budget));
+	}
+
+	// Research first (the army saves for it), then training. Returns the remaining budget.
+	private function militaryTurn($npc, NPCVillage $v, $budget) {
+		$profile = isset(NPCMilitary::$armyShare[$npc['profile']]) ? $npc['profile'] : 'balanced';
+
+		$research = NPCMilitary::researchCandidate($v, $profile);
+		if($research) {
+			$r = $GLOBALS['r'.$research];
+			$price = $r['wood'] + $r['clay'] + $r['iron'] + $r['crop'];
+			if($budget < $price) {
+				$this->log($npc['uid'], $v->wref, 'army_wait', 'research '.self::unitName($research).', budget '.
+					round($budget).'/'.$price, true);
+				return $budget;
+			}
+			$cost = NPCActions::queueResearch($v, $research);
+			if(!$cost) {
+				$this->log($npc['uid'], $v->wref, 'army_wait', 'research '.self::unitName($research).
+					', not enough resources in stock', true);
+				return $budget;
+			}
+			$this->log($npc['uid'], $v->wref, 'research', self::unitName($research).' in '.$cost['time'].'s, cost '.
+				$cost['wood'].'/'.$cost['clay'].'/'.$cost['iron'].'/'.$cost['crop']);
+			return $budget - $price;
+		}
+
+		$c = NPCMilitary::trainCandidate($v, $profile);
+		if(!$c) {
+			return $budget;   // no barracks/stable or nothing researched yet
+		}
+		$reserve = NPCEconomy::$cropReserve[$profile] * ($v->prod('wood') + $v->prod('clay') + $v->prod('iron'));
+		list($amt, $limit) = NPCMilitary::trainAmount($v, $c['unit'], $budget, $reserve);
+		if($amt < 1) {
+			if($limit == 'crop') {
+				$this->log($npc['uid'], $v->wref, 'army_paused', 'training paused, free crop '.round($v->freeCrop()).
+					'/h would drop under reserve '.round($reserve).'/h', true);
+			}
+			return $budget;
+		}
+		$cost = NPCActions::queueTraining($v, $c['unit'], $amt);
+		if(!$cost) {
+			return $budget;
+		}
+		$this->log($npc['uid'], $v->wref, 'train', $amt.'x '.self::unitName($c['unit']).' ('.$c['role'].', limited by '.$limit.
+			'), done in '.$cost['time'].'s, cost '.$cost['wood'].'/'.$cost['clay'].'/'.$cost['iron'].'/'.$cost['crop']);
+		return $budget - ($cost['wood'] + $cost['clay'] + $cost['iron'] + $cost['crop']);
+	}
+
+	private static function unitName($unit) {
+		return defined('U'.$unit) ? constant('U'.$unit) : 'unit '.$unit;
 	}
 
 	// Tries the economy's candidates in order and queues the first affordable one.
@@ -76,12 +148,12 @@ class NPCController {
 				$wait = NPCActions::secondsUntilAffordable($v, $cost);
 				$waitFor = $c;
 			} elseif($result != NPCActions::NO_RESOURCES) {
-				$this->log($npc['uid'], $v->wref, 'skip', self::describe($c).': '.$result);
+				$this->log($npc['uid'], $v->wref, 'skip', self::describe($c).': '.$result, true);
 			}
 		}
 		if($waitFor !== null) {
 			$this->log($npc['uid'], $v->wref, 'wait', 'saving for '.self::describe($waitFor).', ready in '.
-				($wait === null ? 'never (production <= 0)' : $wait.'s').' ('.$waitFor['reason'].')');
+				($wait === null ? 'never (production <= 0)' : $wait.'s').' ('.$waitFor['reason'].')', true);
 			return $wait === null ? NPC_MAX_SLEEP : $wait;
 		}
 		// Everything was skipped (no crop, storage too small): nothing changes until a job finishes
@@ -107,8 +179,20 @@ class NPCController {
 			" WHERE uid = ".intval($uid));
 	}
 
-	public function log($uid, $wref, $action, $detail) {
+	// $dedupe: skip the entry if this NPC's last entry of the same action in the same
+	// village is about the same thing (text before the first comma) - keeps
+	// "still waiting" states from writing a row every minute.
+	public function log($uid, $wref, $action, $detail, $dedupe = false) {
 		global $database;
+		if($dedupe) {
+			$last = $database->query_return("SELECT detail FROM ".TB_PREFIX."npc_log WHERE uid = ".intval($uid).
+				" AND wref = ".intval($wref)." AND action = '".mysql_real_escape_string($action, $database->connection)."'".
+				" ORDER BY id DESC LIMIT 1");
+			$key = strtok($detail, ',');
+			if(!empty($last) && strtok($last[0]['detail'], ',') === $key) {
+				return;
+			}
+		}
 		$database->query("INSERT INTO ".TB_PREFIX."npc_log (uid, wref, time, action, detail) VALUES (".
 			intval($uid).", ".intval($wref).", ".time().", '".mysql_real_escape_string($action, $database->connection)."', '".
 			mysql_real_escape_string($detail, $database->connection)."')");

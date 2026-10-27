@@ -31,7 +31,8 @@ class NPCEconomy {
 	public static $plans = array(
 		'farmer' => array(
 			array(15,3), array(10,3), array(11,3), array(23,3), array(16,1), array(15,5), array(17,1),
-			array(10,6), array(11,6), array(22,1), array(19,1), array(8,5), array(15,10), array(10,10),
+			// barracks 3 + smithy 1: research requirements of the defensive units (praetorian, spearman)
+			array(10,6), array(11,6), array(22,1), array(19,3), array(12,1), array(8,5), array(15,10), array(10,10),
 			array(11,10), array(5,5), array(6,5), array(7,5), array(9,5), array(17,10), array(23,10),
 		),
 		'balanced' => array(
