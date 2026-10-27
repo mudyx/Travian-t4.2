@@ -5,13 +5,13 @@
  *
  * Targets: other NPC villages and Nature "Farm" villages; real players only
  * when NPC_ATTACK_REAL_PLAYERS is on. Never: own villages, Natars, beginner
- * protection, targets this NPC hit recently, targets with a defence the
- * raid can't beat by NPC_RAID_MIN_ADVANTAGE.
+ * protection, targets this NPC hit recently.
+ * Knowledge: only what NPCIntel learnt from the NPC's own raids. A target it
+ * knows nothing (fresh) about gets a small probe raid first; a target known to
+ * be too strong is left alone. Visible facts (position, protection) are used
+ * like a player would.
  * Units: offensive units only; defensive ones never leave and
  * NPC_RAID_HOME_RESERVE of the offensive ones stays home too.
- *
- * Defence is read from the target's units (fine for NPCs and farms; real
- * players should be scouted first - left for when player raids are enabled).
  */
 class NPCAttack {
 
@@ -46,23 +46,36 @@ class NPCAttack {
 	}
 
 	// Best raid from this village or null:
-	// array(target, units, capacity, loot, attack, defence, seconds, score)
+	// array(target, units, capacity, loot, attack, defence, seconds, score, probe)
 	public static function plan($npc, NPCVillage $v) {
 		global $database, $generator;
 		$avail = self::available($v);
 		if(array_sum($avail) < NPC_RAID_MIN_UNITS) return null;
+		$fullAttack = 0;
+		foreach($avail as $unit => $n) { $fullAttack += $n * $GLOBALS['u'.$unit]['atk']; }
 
 		$from = $database->getCoor($v->wref);
+		$intel = NPCIntel::forNpc($npc['uid']);
+		$fresh = time() - round(NPC_INTEL_MAX_AGE / SPEED);
 		$best = null;
 		foreach(self::targets($npc) as $t) {
-			$distance = $generator->procDistance($from, $t);
-			if($distance > NPC_RAID_RADIUS) continue;
+			if($generator->procDistance($from, $t) > NPC_RAID_RADIUS) continue;
 			if($database->hasBeginnerProtection($t['wref'])) continue;
 
-			$loot = self::lootable($t['wref']);
-			if($loot < 100) continue;
-			$defence = self::defence($t['wref'], $avail);
-			$raid = self::compose($avail, $loot, $defence);
+			$known = isset($intel[$t['wref']]) && $intel[$t['wref']]['updated'] >= $fresh ? $intel[$t['wref']] : null;
+			if($known) {
+				// Known too strong (whole raid died) or nothing worth taking: leave it
+				if($known['defence_known'] == 2 && $fullAttack < $known['defence'] * NPC_RAID_MIN_ADVANTAGE) continue;
+				if($known['loot'] < 100) continue;
+				$loot = intval($known['loot']);
+				$defence = floatval($known['defence']);
+				$raid = self::compose($avail, $loot, $defence);
+			} else {
+				// Unknown or stale: probe with a minimal raid
+				$loot = NPC_RAID_PROBE_LOOT;
+				$defence = 0;
+				$raid = self::minimum($avail);
+			}
 			if(!$raid) continue;
 
 			$seconds = $generator->procDistanceTime($from, $t, $raid['speed'], 1);
@@ -70,7 +83,7 @@ class NPCAttack {
 			if($best === null || $score > $best['score']) {
 				$best = array('target' => $t, 'units' => $raid['units'], 'capacity' => $raid['capacity'],
 					'loot' => $loot, 'attack' => $raid['attack'], 'defence' => $defence,
-					'seconds' => $seconds, 'score' => $score);
+					'seconds' => $seconds, 'score' => $score, 'probe' => $known === null);
 			}
 		}
 		return $best;
@@ -88,47 +101,6 @@ class NPCAttack {
 			" JOIN ".TB_PREFIX."wdata w ON w.id = v.wref".
 			" WHERE v.owner <> ".intval($npc['uid'])." AND v.owner <> 2 AND v.natar = 0 AND v.pop > 0 AND (".$owners.")".
 			" AND v.wref NOT IN (SELECT to_wref FROM ".TB_PREFIX."npc_raid WHERE uid = ".intval($npc['uid'])." AND sent_at > ".$recent.")");
-	}
-
-	// Resources the raid could take now: stock projected to this second (as the
-	// lazy update would), minus what the target's crannies hide.
-	private static function lootable($wref) {
-		global $database, $bid23;
-		$vd = $database->getVillage($wref);
-		$fd = $database->getResourceLevel($wref);
-		$hidden = 0;
-		for($i = 19; $i <= 40; $i++) {
-			if($fd['f'.$i.'t'] == 23 && $fd['f'.$i] > 0) $hidden += $bid23[$fd['f'.$i]]['attri'];
-		}
-		$hours = max(0, time() - $vd['lastupdate']) / 3600;
-		$loot = 0;
-		foreach(array('wood', 'clay', 'iron', 'crop') as $res) {
-			$max = $res == 'crop' ? $vd['maxcrop'] : $vd['maxstore'];
-			$stock = min($max, $vd[$res] + max(0, $vd[$res.'p']) * $hours);
-			$loot += max(0, $stock - $hidden);
-		}
-		return (int)$loot;
-	}
-
-	// Defence of the target's own and reinforcing units against our infantry/cavalry mix
-	private static function defence($wref, $avail) {
-		global $database;
-		$inf = $cav = 0;
-		foreach($avail as $unit => $n) {
-			if(in_array($unit, NPCMilitary::$stables)) $cav += $n; else $inf += $n;
-		}
-		$cavShare = ($inf + $cav) > 0 ? $cav / ($inf + $cav) : 0;
-		$armies = $database->getEnforceVillage($wref, 0);
-		$armies[] = $database->getUnit($wref);
-		$def = 0;
-		foreach($armies as $army) {
-			for($i = 1; $i <= 50; $i++) {
-				if(empty($army['u'.$i])) continue;
-				$u = $GLOBALS['u'.$i];
-				$def += $army['u'.$i] * ($u['di'] * (1 - $cavShare) + $u['dc'] * $cavShare);
-			}
-		}
-		return $def;
 	}
 
 	// Smallest share of the available units that both carries the loot (+20 %) and

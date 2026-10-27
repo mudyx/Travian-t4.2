@@ -87,10 +87,16 @@ function runAutomation($lockWait=0){
 	return true;
 }
 
-// Page requests run automation right away (as before); CLI scripts define
-// AUTOMATION_MANUAL and call runAutomation() themselves.
+require_once dirname(__FILE__)."/NPC/npc_common.php";
+
+// Page requests run automation right away (as before) and then give the NPCs a
+// short slice of time; npc_ping.php (called by the game page every minute)
+// defines a bigger budget. CLI scripts define AUTOMATION_MANUAL and call
+// runAutomation() / npc_tick() themselves.
 if(!defined('AUTOMATION_MANUAL')) {
 	runAutomation(0);
+	npc_tick(defined('NPC_PING') ? NPC_PING_BUDGET : NPC_PAGE_BUDGET,
+		defined('NPC_PING') ? NPC_PING_MAX_STEPS : NPC_PAGE_MAX_STEPS);
 }
 
 ?>

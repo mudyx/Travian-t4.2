@@ -14,21 +14,28 @@ class NPCVillage {
 	public $research = array();// s1_research rows in progress
 	public $training = array();// s1_training rows (queued units)
 
+	// Once per step: the engine's lazy production update (~10 queries) + the rows
 	public static function load($wref, $tribe) {
-		global $database;
 		updateWrefResource($wref);   // stock in vdata is only current after this
 		$v = new NPCVillage;
 		$v->wref = intval($wref);
 		$v->tribe = intval($tribe);
-		$v->vdata = $database->getVillage($wref);
-		$v->fdata = $database->getResourceLevel($wref);
-		$v->jobs = $database->getJobs($wref);
-		$v->units = $database->getUnit($wref);
-		$v->tech = $database->getTech($wref);
-		$v->research = $database->getResearching($wref);
-		$v->training = $database->getTraining($wref);
-		$v->capital = intval($v->vdata['capital']);
+		$v->refresh();
 		return $v;
+	}
+
+	// After the NPC's own actions: re-read the rows only. Stock is still current
+	// (actions just subtract from it), so no new production update is needed.
+	public function refresh() {
+		global $database;
+		$this->vdata = $database->getVillage($this->wref);
+		$this->fdata = $database->getResourceLevel($this->wref);
+		$this->jobs = $database->getJobs($this->wref);
+		$this->units = $database->getUnit($this->wref);
+		$this->tech = $database->getTech($this->wref);
+		$this->research = $database->getResearching($this->wref);
+		$this->training = $database->getTraining($this->wref);
+		$this->capital = intval($this->vdata['capital']);
 	}
 
 	// Units without research: the first unit of each tribe and the settler (Technology::trainUnit)

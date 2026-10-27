@@ -1,36 +1,21 @@
 <?php
 /*
  * NPC setup (CLI only):
- *   1. applies GameEngine/NPC/sql/*.sql migrations (idempotent: CREATE TABLE IF NOT EXISTS)
+ *   1. applies all GameEngine/NPC/sql/*.sql migrations (idempotent; the game
+ *      also applies new ones by itself on the next request)
  *   2. tops the NPC population up to NPC_COUNT (safe to run again)
  *
  *   php npc_setup.php                 migrate + create missing NPCs
  *   php npc_setup.php --migrate-only  only create/upgrade the tables
  */
 require dirname(__FILE__).'/GameEngine/NPC/bootstrap.php';
-require NPC_ENGINE.'/NPC/npc_config.php';
 require NPC_ENGINE.'/NPC/NPCFactory.php';
-require NPC_ENGINE.'/NPC/NPCController.php';
+npc_load_classes();
 
-function npc_migrate() {
-	global $database;
-	$files = glob(NPC_ENGINE.'/NPC/sql/*.sql');
-	sort($files);
-	foreach($files as $file) {
-		$sql = str_replace('%PREFIX%', TB_PREFIX, file_get_contents($file));
-		$sql = preg_replace('/^\s*--.*$/m', '', $sql);  // whole-line comments
-		foreach(preg_split('/;\s*$/m', $sql) as $statement) {
-			if(trim($statement) == '') continue;
-			if(!$database->query($statement)) {
-				fwrite(STDERR, basename($file).": ".mysql_error($database->connection).PHP_EOL);
-				exit(1);
-			}
-		}
-		npc_log("migration ".basename($file)." OK");
-	}
+if(!npc_migrate(true)) {
+	fwrite(STDERR, "migration failed".PHP_EOL);
+	exit(1);
 }
-
-npc_migrate();
 if(in_array('--migrate-only', $argv)) {
 	exit(0);
 }

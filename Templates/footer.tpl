@@ -10,3 +10,15 @@
 		<div class="clear"></div>
 	</div>
 </div>
+<script type="text/javascript">
+// Background ping: keeps the game automation and the NPC players running
+// (and catching up) while the game is open - no external runner needed.
+(function() {
+	function npcPing() {
+		var r = new XMLHttpRequest();
+		r.open('GET', 'npc_ping.php?t=' + new Date().getTime(), true);
+		r.send();
+	}
+	setInterval(npcPing, 60000);
+})();
+</script>

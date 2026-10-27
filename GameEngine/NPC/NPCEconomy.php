@@ -48,12 +48,15 @@ class NPCEconomy {
 	);
 
 	// Returns candidates: array('field'=>id, 'tid'=>type, 'level'=>target level, 'reason'=>text)
-	public static function propose(NPCVillage $v, $profile) {
+	// $fieldBusy/$buildingBusy mark a queue as taken although bdata says free
+	// (catch-up: a backdated job the automation already finished is still
+	// running at the replayed moment).
+	public static function propose(NPCVillage $v, $profile, $fieldBusy = false, $buildingBusy = false) {
 		if(!isset(self::$plans[$profile])) {
 			$profile = 'balanced';
 		}
-		$field = $v->queueBusy(true) ? null : self::fieldCandidate($v, $profile);
-		$building = $v->queueBusy(false) ? null : self::buildingCandidate($v, $profile, $field);
+		$field = ($fieldBusy || $v->queueBusy(true)) ? null : self::fieldCandidate($v, $profile);
+		$building = ($buildingBusy || $v->queueBusy(false)) ? null : self::buildingCandidate($v, $profile, $field);
 
 		$crisis = $field && $field['reason'] == 'crop reserve';
 		$storage = $building && $building['reason'] == 'storage';

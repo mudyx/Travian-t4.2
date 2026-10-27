@@ -1,25 +1,16 @@
 <?php
 /*
- * NPC runner (CLI only) - started every minute by the Windows Task Scheduler:
+ * Optional NPC runner (CLI only). Not needed while the game is played: every
+ * game request and the page's background ping (npc_ping.php) run the NPC tick
+ * themselves. Useful on a server without visitors (cron) or for debugging:
  *   php npc_runner.php
  *
  *   1. takes the runner lock (a second instance exits immediately)
- *   2. runs the regular game automation (builds, training, attacks finish
- *      even when no human player has a page open)
- *   3. lets every NPC whose next_action_at has passed act once
+ *   2. runs the regular game automation
+ *   3. one NPC tick with the CLI budget (catch-up included)
  */
 require dirname(__FILE__).'/GameEngine/NPC/bootstrap.php';
-require NPC_ENGINE.'/NPC/npc_config.php';
-require NPC_ENGINE.'/NPC/NPCVillage.php';
-require NPC_ENGINE.'/NPC/NPCRules.php';
-require NPC_ENGINE.'/NPC/NPCEconomy.php';
-require NPC_ENGINE.'/NPC/NPCMilitary.php';
-require NPC_ENGINE.'/NPC/NPCAttack.php';
-require NPC_ENGINE.'/NPC/NPCActions.php';
-require NPC_ENGINE.'/NPC/NPCController.php';
 
-// Lock name gets the table prefix (s1_npc_runner), so two worlds on one
-// database server don't block each other.
 if(!npc_acquire_lock('npc_runner', 0)) {
 	npc_log("another npc_runner is still running, exiting");
 	exit(0);
@@ -33,9 +24,7 @@ if(runAutomation(NPC_AUTOMATION_LOCK_WAIT)) {
 	npc_log("automation skipped (lock busy for ".NPC_AUTOMATION_LOCK_WAIT."s or round finished)");
 }
 
-$controller = new NPCController;
-$processed = $controller->run();
-$controller->pruneLog();
+$processed = npc_tick(NPC_RUN_TIME_BUDGET, NPC_MAX_PER_RUN);
 
 npc_release_lock('npc_runner');
 npc_log("NPCs processed: $processed, run took ".round(microtime(true) - $started, 2)."s");

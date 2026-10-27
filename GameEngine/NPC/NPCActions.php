@@ -18,8 +18,11 @@ class NPCActions {
 
 	// Puts field/building $field (type $tid) at $level into the build queue.
 	// Mirrors Building::upgradeBuilding()/constructBuilding() + MasterBuilder.
-	public static function queueBuild(NPCVillage $v, $field, $tid, $level) {
+	// $start: when the job begins (default now; in the past during catch-up, so
+	// the automation finishes it right away).
+	public static function queueBuild(NPCVillage $v, $field, $tid, $level, $start = null) {
 		global $database;
+		$start = $start === null ? time() : $start;
 		$cost = NPCRules::cost($v, $tid, $level);
 		self::$lastCost = $cost;
 		if(!$cost) {
@@ -39,7 +42,7 @@ class NPCActions {
 		}
 		$oldType = $v->type($field);
 		// addBuilding() also stamps the type on the slot right away (as for players)
-		if(!$database->addBuilding($v->wref, $field, $tid, 0, time() + $cost['time'], 0, $level)) {
+		if(!$database->addBuilding($v->wref, $field, $tid, 0, $start + $cost['time'], 0, $level)) {
 			$database->modifyResource($v->wref, $cost['wood'], $cost['clay'], $cost['iron'], $cost['crop'], 1);
 			if($oldType == 0) {
 				$database->query("UPDATE ".TB_PREFIX."fdata SET f".intval($field)."t = 0 WHERE vref = ".$v->wref);
@@ -49,12 +52,14 @@ class NPCActions {
 		return self::QUEUED;
 	}
 
-	// Starts academy research of $unit (Technology::researchTech()). Returns cost or false.
-	public static function queueResearch(NPCVillage $v, $unit) {
+	// Starts academy research of $unit (Technology::researchTech()). Returns cost
+	// (with 'end' = finish time) or false. $start as in queueBuild().
+	public static function queueResearch(NPCVillage $v, $unit, $start = null) {
 		global $database;
+		$start = $start === null ? time() : $start;
 		$data = $GLOBALS['r'.$unit];
 		$academy = $v->typeLevel(22);
-		$time = time() + round(($data['time'] * ($GLOBALS['bid22'][$academy]['attri'] / 100)) / SPEED);
+		$time = $start + round(($data['time'] * ($GLOBALS['bid22'][$academy]['attri'] / 100)) / SPEED);
 		if(!self::takeResources($v->wref, $data)) {
 			return false;
 		}
@@ -63,29 +68,31 @@ class NPCActions {
 			return false;
 		}
 		return array('wood' => $data['wood'], 'clay' => $data['clay'], 'iron' => $data['iron'], 'crop' => $data['crop'],
-			'time' => $time - time());
+			'time' => $time - $start, 'end' => $time);
 	}
 
 	// Queues $amt units behind the building's current queue, writing the same row
 	// as $database->trainUnit() (which can't be used: it needs the session's $village).
-	// Returns the total cost or false.
-	public static function queueTraining(NPCVillage $v, $unit, $amt) {
+	// Returns the total cost (with 'end') or false. $start as in queueBuild().
+	public static function queueTraining(NPCVillage $v, $unit, $amt, $start = null) {
 		global $database;
+		$start = $start === null ? time() : $start;
 		$u = $GLOBALS['u'.$unit];
 		$cost = array('wood' => $u['wood'] * $amt, 'clay' => $u['clay'] * $amt, 'iron' => $u['iron'] * $amt, 'crop' => $u['crop'] * $amt);
 		$each = NPCMilitary::eachTime($v, $unit);
 		if(!self::takeResources($v->wref, $cost)) {
 			return false;
 		}
-		$start = NPCMilitary::queueEnd($v, $unit);
-		$endat = $start + round($each * $amt / 1000);
+		$begin = NPCMilitary::queueEnd($v, $unit, $start);
+		$endat = $begin + round($each * $amt / 1000);
 		$ok = $database->query("INSERT INTO ".TB_PREFIX."training VALUES (0, ".$v->wref.", ".intval($unit).", ".intval($amt).", ".
-			intval($u['pop']).", ".$start.", ".intval($each).", ".$start.", ".$endat.")");
+			intval($u['pop']).", ".$begin.", ".intval($each).", ".$begin.", ".$endat.")");
 		if(!$ok) {
 			$database->modifyResource($v->wref, $cost['wood'], $cost['clay'], $cost['iron'], $cost['crop'], 1);
 			return false;
 		}
-		$cost['time'] = $endat - time();
+		$cost['time'] = $endat - $start;
+		$cost['end'] = $endat;
 		return $cost;
 	}
 
@@ -122,9 +129,10 @@ class NPCActions {
 
 		$list = array();
 		foreach($plan['units'] as $unit => $n) { $list[] = 'u'.$unit.':'.$n; }
-		$database->query("INSERT INTO ".TB_PREFIX."npc_raid (uid, from_wref, to_wref, ref, units, capacity, expected_loot, sent_at, arrive_at) VALUES (".
+		$database->query("INSERT INTO ".TB_PREFIX."npc_raid (uid, from_wref, to_wref, ref, units, capacity, expected_loot, sent_at, arrive_at, attack, sent_units) VALUES (".
 			intval($uid).", ".$v->wref.", ".intval($plan['target']['wref']).", ".intval($ref).", '".implode(',', $list)."', ".
-			intval($plan['capacity']).", ".intval(min($plan['loot'], $plan['capacity'])).", ".time().", ".$arrive.")");
+			intval($plan['capacity']).", ".intval(min($plan['loot'], $plan['capacity'])).", ".time().", ".$arrive.", ".
+			floatval($plan['attack']).", ".intval(array_sum($plan['units'])).")");
 		return $ref;
 	}
 

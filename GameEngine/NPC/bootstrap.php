@@ -52,23 +52,5 @@ include("Generator.php");            // $generator
 include("Natars.php");               // $natars
 include("Logging.php");              // $logging
 include("Multisort.php");
-include("Automation.php");           // defines runAutomation(), $technology
-
-// Shared helpers for CLI scripts
-
-function npc_log($msg) {
-	echo date('Y-m-d H:i:s')." ".$msg.PHP_EOL;
-}
-
-// Same mechanism as the automation lock in Automation.php; keeps two CLI runs from overlapping (e.g. a slow run
-// still working when the Task Scheduler starts the next one).
-function npc_acquire_lock($name, $wait=0) {
-	global $database;
-	$row = mysql_fetch_row($database->query("SELECT GET_LOCK('".TB_PREFIX.$name."',".intval($wait).")"));
-	return $row && $row[0] == 1;
-}
-
-function npc_release_lock($name) {
-	global $database;
-	$database->query("SELECT RELEASE_LOCK('".TB_PREFIX.$name."')");
-}
+include("Automation.php");           // defines runAutomation(), $technology; loads NPC/npc_common.php
+                                     // (npc_log, npc_acquire_lock, npc_migrate, npc_tick)

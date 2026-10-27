@@ -109,10 +109,10 @@ class NPCMilitary {
 		return round($attri / 100 * $GLOBALS['u'.$unit]['time'] * $database->getArtEffTrain($v->wref) * 1000 / SPEED);
 	}
 
-	// End of the training queue of the building that trains $unit (now if empty)
-	public static function queueEnd(NPCVillage $v, $unit) {
+	// End of the training queue of the building that trains $unit ($from - now by default - if empty)
+	public static function queueEnd(NPCVillage $v, $unit, $from = null) {
 		$group = self::buildingFor($unit) == 19 ? self::$barracks : self::$stables;
-		$end = time();
+		$end = $from === null ? time() : $from;
 		foreach($v->training as $t) {
 			if(in_array($t['unit'], $group)) $end = max($end, intval($t['endat']));
 		}
@@ -121,13 +121,14 @@ class NPCMilitary {
 
 	// How many units to train: limited by budget, stock, queue length and crop reserve.
 	// Returns array(amount, reason of the tightest limit).
-	public static function trainAmount(NPCVillage $v, $unit, $budget, $cropReserve) {
+	public static function trainAmount(NPCVillage $v, $unit, $budget, $cropReserve, $start = null) {
+		$start = $start === null ? time() : $start;
 		$u = $GLOBALS['u'.$unit];
 		$limits = array();
 		$limits['budget'] = floor($budget / ($u['wood'] + $u['clay'] + $u['iron'] + $u['crop']));
 		$limits['resources'] = floor(min($v->stock('wood') / $u['wood'], $v->stock('clay') / $u['clay'],
 			$v->stock('iron') / $u['iron'], $v->stock('crop') / $u['crop']));
-		$queued = self::queueEnd($v, $unit) - time();
+		$queued = self::queueEnd($v, $unit, $start) - $start;
 		// Refill only once the queue is under half its length: one big batch instead
 		// of a new 1-unit row every turn
 		$limits['queue'] = ($queued > NPC_TRAIN_QUEUE_SECONDS / 2) ? 0 :
