@@ -40,6 +40,12 @@ class NPCIntel {
 			// Only the survivors carried loot home
 			$carried = intval($r['capacity']) * $survivors / $sent;
 			self::learn($r['uid'], $r['to_wref'], floatval($r['attack']), $lost / $sent, $loot, $carried, $lost);
+			// A raid that was wiped out hurts (the more troops, the more); a rich haul cheers up
+			if($lost >= 10 && $lost / $sent >= 0.7) {
+				NPCHuman::upset($r['uid'], NPC_UPSET_RAID + min(30, $lost / 4));
+			} elseif($carried > 0 && $loot >= 0.6 * $carried) {
+				NPCHuman::upset($r['uid'], -3);
+			}
 		}
 		return count($raids);
 	}

@@ -94,18 +94,35 @@ define('NPC_EXPAND_CP_AHEAD', 43200);       // starts preparing when the culture
 define('NPC_EXPAND_RADIUS', 12);            // new villages within this many fields of the mother village ...
 define('NPC_EXPAND_MIN_DIST', 3);           // ... but not closer than this
 
-// World growth (NPCWorld::grow, part of the NPC tick). Real seconds, like sign-ups.
-define('NPC_MAX', 0);                       // NPCs joining over the round; 0 = by map size (WORLD_MAX x 4, kept within 160..400)
-define('NPC_START_SHARE', 0.4);             // share already there at the round start ...
-define('NPC_GROWTH_TAU', 172800);           // ... the rest joins along 1 - e^(-t/tau) (63 % of them in 2 days)
-define('NPC_MIN_ACTIVE', 0.6);              // late joiners keep the active NPCs at this share of NPC_MAX
-define('NPC_SPAWN_PER_STEP', 10);           // new accounts per growth step (runs only in the background ping / CLI)
-define('NPC_GROW_INTERVAL', 120);           // seconds between growth steps
-define('NPC_QUIT_RATE', 0.03);              // daily chance to stop playing (x 1.5..0.5 by diligence, x more when farmed)
-define('NPC_QUIT_MIN_AGE', 86400);          // nobody quits in the first day; quitters' villages stay as inactive farms
+// The world's population (NPCWorld::grow, part of the background NPC tick). Real
+// time, like people. Rates are averages of random processes - nothing is filled up to a number.
+define('NPC_MAX', 0);                       // server size the rates scale with; 0 = by map size (WORLD_MAX x 4, kept within 160..400)
+define('NPC_JOIN_RUSH', 0.3);               // sign-ups (x NPC_MAX, on average) in the launch rush ...
+define('NPC_JOIN_RUSH_HOURS', 10);          // ... fading with this time constant
+define('NPC_JOIN_MAIN', 0.55);              // sign-ups in the main wave of the first days ...
+define('NPC_JOIN_MAIN_HOURS', 72);          // ... fading with this time constant
+define('NPC_JOIN_LATE', 0.03);              // late joiners per day for the rest of the round
+define('NPC_JOIN_SPELLS', 0.8);             // adverts / word of mouth / silent spells starting per day
+define('NPC_JOIN_ROOM', 1.5);               // a map with this x NPC_MAX active players attracts nobody any more
+define('NPC_SPAWN_PER_STEP', 10);           // most accounts created per step (load); the rest wait for the next one
+define('NPC_GROW_INTERVAL', 120);           // seconds between steps
+define('NPC_LIFE_MAX_GAP', 604800);         // a world closed longer than this lives through only the last week
+define('NPC_QUIT_RATE', 0.015);             // daily chance to stop playing (x 1.6 - diligence)
+define('NPC_DROPOUT_RATE', 0.25);           // extra daily chance for newcomers who only try it (x (1 - diligence)^2) ...
+define('NPC_DROPOUT_DAYS', 2);              // ... fading with this many days of age
+define('NPC_ABSENCE_RATE', 0.04);           // daily chance to drop out for a while (x 1.5 - diligence)
+define('NPC_ABSENCE_MEDIAN', 108000);       // typical absence (s); spread x0.5..x2, within ...
+define('NPC_ABSENCE_MIN', 28800);           // ... a night and a half ...
+define('NPC_ABSENCE_MAX', 604800);          // ... and a week
+define('NPC_ABSENCE_NEVER', 0.2);           // chance an absent NPC never comes back (more after long absences / frustration)
+define('NPC_FRUSTRATION_HALFLIFE', 172800); // frustration (0-100) halves in this time
+define('NPC_FRUSTRATION_QUIT', 25);         // quitting chance x (1 + frustration / this)
+define('NPC_FRUSTRATION_AWAY', 30);         // absence chance x (1 + frustration / this)
+define('NPC_UPSET_HIT', 3);                 // frustration per hit taken (+2 for each repeat by the same village)
+define('NPC_UPSET_RAID', 10);               // frustration for a raid that was wiped out (+ lost units / 4)
 define('NPC_VILLAGE_CAP', 0);               // all NPC villages together; 0 = 3 x NPC_MAX (no expansion beyond)
 define('NPC_LAG_THRESHOLD', 300);           // a due NPC this many seconds late while the game is open = the server can't keep up ...
-define('NPC_LAG_PAUSE', 3600);              // ... then no new NPCs for this long
+define('NPC_LAG_PAUSE', 3600);              // ... then sign-ups wait this long
 
 // Trade between own villages (NPCMarket): rich villages send surplus to hungry ones (colonies first)
 define('NPC_TRADE_DONOR_FILL', 0.7);        // a resource this full (share of storage) can be given away ...

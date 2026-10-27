@@ -168,6 +168,8 @@ class NPCDefence {
 			$g = $database->query_return("SELECT * FROM ".TB_PREFIX."npc_grudge WHERE uid = ".intval($npc['uid']).
 				" AND wref = ".intval($h['from']));
 			$g = $g[0];
+			// Every hit annoys, being farmed again and again more so
+			NPCHuman::upset($npc['uid'], NPC_UPSET_HIT + 2 * min(5, $g['hits'] - 1));
 			if($g['revenge_at'] > 0) continue;   // already plotting
 			$who = $database->getUserField($owner, 'username', 0);
 			$isNpc = mysql_num_rows($database->query("SELECT 1 FROM ".TB_PREFIX."npc WHERE uid = ".$owner)) > 0;

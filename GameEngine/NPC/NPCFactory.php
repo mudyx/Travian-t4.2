@@ -13,8 +13,9 @@ class NPCFactory {
 
 	public $error = '';
 
-	// Returns the new uid, or false with $this->error set.
-	public function create($name, $tribe, $profile, $aggression) {
+	// Returns the new uid, or false with $this->error set. $near: settle next to
+	// that village (friends joining together), if there is room.
+	public function create($name, $tribe, $profile, $aggression, $near = 0) {
 		global $database, $generator;
 		$this->error = '';
 
@@ -37,7 +38,8 @@ class NPCFactory {
 
 		// first.php -> Account::generateBase($sector, $uid, $name, 1), but the spot
 		// comes from the NPC spawn spiral (even spread); generateBase if it is full
-		$wid = NPCWorld::spawnSite();
+		$wid = $near ? NPCWorld::siteNear($near) : 0;
+		if(!$wid) $wid = NPCWorld::spawnSite();
 		if($wid) {
 			$coor = $database->getCoor($wid);
 			$sector = NPCWorld::sector($coor['x'], $coor['y']);

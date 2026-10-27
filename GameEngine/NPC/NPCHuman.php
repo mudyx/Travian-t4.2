@@ -227,7 +227,32 @@ class NPCHuman {
 		return 1 + (self::rand() * 2 - 1) * $spread;
 	}
 
-	private static function rand() {
+	public static function rand() {
 		return mt_rand() / (mt_getrandmax() + 1);
+	}
+
+	// Standard normal (Box-Muller)
+	public static function gauss() {
+		return sqrt(-2 * log(1 - self::rand())) * cos(2 * M_PI * self::rand());
+	}
+
+	// ---- frustration ----
+
+	// How fed up the NPC is now (0-100): lost battles and being farmed add to it,
+	// it halves every NPC_FRUSTRATION_HALFLIFE. Makes absences and quitting likelier.
+	public static function frustration($npc, $t) {
+		$f = floatval($npc['frustration']);
+		if($f <= 0) return 0;
+		return $f * pow(0.5, max(0, $t - intval($npc['frustration_at'])) / NPC_FRUSTRATION_HALFLIFE);
+	}
+
+	// Adds $amount (negative = a success cheers it up)
+	public static function upset($uid, $amount) {
+		global $database;
+		$now = time();
+		$rows = $database->query_return("SELECT frustration, frustration_at FROM ".TB_PREFIX."npc WHERE uid = ".intval($uid));
+		if(empty($rows)) return;
+		$f = max(0, min(100, self::frustration($rows[0], $now) + $amount));
+		$database->query("UPDATE ".TB_PREFIX."npc SET frustration = ".round($f, 2).", frustration_at = ".$now." WHERE uid = ".intval($uid));
 	}
 }

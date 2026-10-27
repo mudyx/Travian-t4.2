@@ -37,7 +37,13 @@ class NPCController {
 			}
 			$next = time() + NPC_TICK_SECONDS;
 			try {
-				$overdue = time() - max(intval($npc['next_action_at']), intval($npc['sim_at']));
+				// Back from an absence (NPCWorld) - or not at all
+				if(intval($npc['away_until']) > 0 && !NPCWorld::comesBack($this, $npc)) {
+					$this->stepsLeft--;
+					$done++;
+					continue;
+				}
+				$overdue =time() - max(intval($npc['next_action_at']), intval($npc['sim_at']));
 				if($overdue > NPC_CATCHUP_THRESHOLD && !$this->catchUp($npc)) {
 					$done++;   // budget ran out mid-replay; sim_at keeps the progress
 					continue;
@@ -55,7 +61,7 @@ class NPCController {
 	}
 
 	// The game has been open (ticks less than 2 min apart) and still an NPC is
-	// NPC_LAG_THRESHOLD late: the server can't keep up - NPCWorld stops adding NPCs
+	// NPC_LAG_THRESHOLD late: the server can't keep up - NPCWorld holds sign-ups back
 	private function checkLag($due) {
 		$now = time();
 		$prev = intval(npc_meta_get('tick_at', 0));
