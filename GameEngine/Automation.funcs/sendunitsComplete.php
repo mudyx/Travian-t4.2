@@ -272,20 +272,21 @@ function sendunitsComplete() {
 					if ($bag['btype']==9 and $bag['type']==114){ // great, the hero has cage
 					
 					$attHeroface['num'] *= CAGE_NUMBER;
-						$iscaged = true;
 						$cu = array();
 						$oasesUnits = $database->getUnit($toVillage['wref']);
 						unset($oasesUnits['vref']);unset($oasesUnits['hero']);
 						$ouCount = 0;foreach($oasesUnits as $k=>$ou){$ouCount += $ou;$cu[$k]=0;}
+						// an empty oasis needs no cages: the attack goes on as a normal one (and can annex it)
+						if ($ouCount<=0) return false;
+						$iscaged = true;
 						if ($ouCount>0){
 							while($ouCount>0 and $attHeroface['num']>0){
 								$key = array_search(max($oasesUnits),$oasesUnits);
 								$oasesUnits[$key]-=1;$ouCount-=1; $attHeroface['num']-=1;
 								$cu[$key]+=1;
-								$z++;
 							}
-							$attHeroface['num'] /= CAGE_NUMBER;
-							$attHeroface['num']  -= $z;
+							// each cage holds CAGE_NUMBER animals: only the untouched cages are left
+							$attHeroface['num'] = floor($attHeroface['num'] / CAGE_NUMBER);
 							if($attHeroface['num']<=0){$database->modifyHeroFace($fromVillage['owner'],'bag',0);}
 							$database->modifyHeroFace($fromVillage['owner'],'num',$attHeroface['num']);
 							$speeds = array();

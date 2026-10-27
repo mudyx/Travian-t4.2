@@ -79,7 +79,10 @@ class NPCOasis {
 			list($animals, $defence) = self::animals($o['wref'], $cavShare);
 			$value = self::bonus($o['type'], $need);
 			if($animals == 0) {
-				// Animals come back to an oasis left alone for long (oasesTrain() on arrival): troops go along
+				// Animals come back to an oasis left alone for long (oasesTrain() on arrival): troops go along.
+				// Even empty, Battle.php gives the oasis a defence of 10 and a hero without strength (level 0)
+				// has no attack at all: alone it would lose and die.
+				if($attack < 10 * $caution || $hero['health'] - 100 * NPCHero::lossShare(10, $attack) < NPCHero::keep($npc)) continue;
 				$plan = array('units' => $avail, 'attack' => $attack, 'how' => 'takes the empty oasis');
 			} elseif($cages * CAGE_NUMBER >= $animals) {
 				$plan = array('units' => array(), 'attack' => 0, 'how' => 'catches '.$animals.' animal(s) with cages', 'cages' => true);

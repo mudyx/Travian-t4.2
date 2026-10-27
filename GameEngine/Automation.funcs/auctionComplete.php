@@ -28,9 +28,13 @@ function auctionComplete() {
 			}
 			$database->setSilver($biderID, $silverdiff, 1);
 			$q = 'UPDATE '.TB_PREFIX.'users SET bisilver=bisilver-'.$silverdiff.' WHERE id='.$biderID; mysql_query($q);
+			$database->setSilver($ownerID, $silver, 1);
+			$q = 'UPDATE '.TB_PREFIX.'users SET sisilver=sisilver+'.$silver.' WHERE id='.$ownerID; mysql_query($q);
+		}else{
+			// nobody bid: no silver, the item goes back to the seller (as delAuction)
+			$database->modifyHeroItem($data['itemid'], 'num', $data['num'], 1);
+			$database->modifyHeroItem($data['itemid'], 'proc', 0, 0);
 		}
-		$database->setSilver($ownerID, $silver, 1);
-		$q = 'UPDATE '.TB_PREFIX.'users SET sisilver=sisilver+'.$silver.' WHERE id='.$ownerID; mysql_query($q);
 		$q = "UPDATE ".TB_PREFIX."auction set finish=1 where id = ".$data['id'];
 		$database->query($q);
         }

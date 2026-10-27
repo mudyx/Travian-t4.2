@@ -3643,16 +3643,24 @@
 			function addAdventure($wref, $uid, $time = 0, $dif = 0){
 				if ($time==0) $time = time();
 				$corexy = $this->query_return("SELECT * FROM ".TB_PREFIX."wdata WHERE id = $wref ");
-				do{
+				if(empty($corexy)) return false;
+				// up to 20 fields around the village in every direction; the map wraps at
+				// its edge (as Generator::procDistanceTime), so every field exists
+				$size = 2 * WORLD_MAX + 1;
+				$toid = 0;
+				for($try = 0; $try < 50; $try++){
 					do{
-						$x = rand(0,20);
-						$y = rand(0,20);
+						$x = rand(-20,20);
+						$y = rand(-20,20);
 					}while($x==0 && $y==0);
-					$x += $corexy[0]['x'];
-					$y += $corexy[0]['y'];
-					$to = $this->query_return("SELECT * FROM ".TB_PREFIX."wdata WHERE x = $x AND y = $y ");
-					$toid = $to[0]['id'];
-				}while($this->getAdventure($uid, $toid));
+					$x = (($corexy[0]['x'] + $x + WORLD_MAX) % $size + $size) % $size - WORLD_MAX;
+					$y = (($corexy[0]['y'] + $y + WORLD_MAX) % $size + $size) % $size - WORLD_MAX;
+					$to = $this->query_return("SELECT id FROM ".TB_PREFIX."wdata WHERE x = $x AND y = $y ");
+					if(empty($to)) continue;
+					// one open adventure per field
+					if(!$this->getAdventure($uid, $to[0]['id'], 0)){ $toid = $to[0]['id']; break; }
+				}
+				if(!$toid) return false;
 				$q = "INSERT into " . TB_PREFIX . "adventure (`wref`, `uid`, `dif`, `time`, `end`) values ('$toid', '$uid', '$dif', '$time', 0)";
         		return mysql_query($q, $this->connection);
 			}
