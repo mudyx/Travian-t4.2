@@ -10,6 +10,10 @@
  */
 require dirname(__FILE__).'/GameEngine/NPC/bootstrap.php';
 require NPC_ENGINE.'/NPC/npc_config.php';
+require NPC_ENGINE.'/NPC/NPCVillage.php';
+require NPC_ENGINE.'/NPC/NPCRules.php';
+require NPC_ENGINE.'/NPC/NPCEconomy.php';
+require NPC_ENGINE.'/NPC/NPCActions.php';
 require NPC_ENGINE.'/NPC/NPCController.php';
 
 // Lock name gets the table prefix (s1_npc_runner), so two worlds on one
