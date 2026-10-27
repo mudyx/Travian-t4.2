@@ -1,0 +1,4 @@
+# Written by the installer - contains database credentials
+GameEngine/Database/connection.php
+install/include/connection.php
+install/include/constant.php

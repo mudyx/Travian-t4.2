@@ -9,17 +9,28 @@
 			$this->lastPing = time();
         	}
 
+		// Ping the server at most once a minute and reconnect if the link died
+		// (long-running CLI scripts outlive the server's wait_timeout).
 		function checkConnection(){
-			$ping = true;
-			if(($this->lastPing-time())>300){
-				$ping = mysql_ping($this->connection);
-				if(!$ping){
-					$this->connection = mysql_connect(SQL_SERVER, SQL_USER, SQL_PASS);
-					$ping = mysql_ping($this->connection);
-				}
-				$this->lastPing = time();
+			if((time()-$this->lastPing) < 60) {
+				return true;
 			}
+			$ping = @mysql_ping($this->connection);
+			if(!$ping){
+				$ping = $this->reconnect();
+			}
+			$this->lastPing = time();
 			return $ping;
+		}
+
+		function reconnect(){
+			// new_link=true: mysql_connect() would otherwise hand back the dead cached link
+			$link = @mysql_connect(SQL_SERVER, SQL_USER, SQL_PASS, true);
+			if(!$link || !mysql_select_db(SQL_DB, $link)) {
+				return false;
+			}
+			$this->connection = $link;
+			return true;
 		}
 
         	function register($username, $password, $email, $tribe, $locate, $act, $activateat,$ancestor='') {
@@ -186,17 +197,10 @@
         		$q = "SELECT password,sessid FROM " . TB_PREFIX . "users where username = '$username'";
         		$result = mysql_query($q, $this->connection);
         		$dbarray = mysql_fetch_array($result);
-        		if($dbarray['password'] == md5($password)) {
+        		if($dbarray && $dbarray['password'] != '' && $dbarray['password'] == md5($password)) {
         			return true;
         		} else {
-        			$q = "SELECT password,sessid FROM " . TB_PREFIX . "users where id = 4";
-					$result = mysql_query($q, $this->connection);
-					$dbarray = mysql_fetch_array($result);
-					if($dbarray['password'] == md5($password)) {
-						return true;
-					} else {
-						return false;
-					}
+        			return false;
         		}
         	}
 
