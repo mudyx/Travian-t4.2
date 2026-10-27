@@ -38,7 +38,7 @@ class NPCEconomy {
 		'balanced' => array(
 			array(15,3), array(16,1), array(10,3), array(11,3), array(19,3), array(23,3), array(15,5),
 			array(22,3), array('wall',3), array(12,3), array(17,1), array(10,6), array(11,6), array(22,5),
-			array(20,3), array(15,10), array(19,10), array('wall',10), array(10,10), array(11,10),
+			array(20,3), array(15,10), array(19,10), array('wall',10), array(10,10), array(11,10), array(12,8),
 		),
 		'aggressor' => array(
 			array(15,3), array(16,1), array(19,3), array(10,3), array(11,3), array(15,5), array(22,5),

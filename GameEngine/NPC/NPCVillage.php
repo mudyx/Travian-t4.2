@@ -11,7 +11,8 @@ class NPCVillage {
 	public $jobs = array();    // s1_bdata rows of this village
 	public $units = array();   // s1_units row (troops at home)
 	public $tech = array();    // s1_tdata row (t2..t49 = 1 when researched)
-	public $research = array();// s1_research rows in progress
+	public $research = array();// s1_research rows in progress (t = academy, b = smithy)
+	public $abdata = array();  // s1_abdata row (b1..b10 = smithy attack levels)
 	public $training = array();// s1_training rows (queued units)
 	public $reserve = array(); // resource => amount kept back (saving for settlers), set by NPCExpansion
 	public $plan = array();    // plan steps before the profile plan (expansion, colony start), set by NPCExpansion
@@ -36,6 +37,7 @@ class NPCVillage {
 		$this->units = $database->getUnit($this->wref);
 		$this->tech = $database->getTech($this->wref);
 		$this->research = $database->getResearching($this->wref);
+		$this->abdata = $database->getABTech($this->wref);
 		$this->training = $database->getTraining($this->wref);
 		$this->capital = intval($this->vdata['capital']);
 	}
@@ -47,6 +49,11 @@ class NPCVillage {
 
 	public function isResearching() {
 		foreach($this->research as $r) { if(substr($r['tech'], 0, 1) == 't') return true; }
+		return false;
+	}
+
+	public function isUpgrading() {
+		foreach($this->research as $r) { if(substr($r['tech'], 0, 1) == 'b') return true; }
 		return false;
 	}
 

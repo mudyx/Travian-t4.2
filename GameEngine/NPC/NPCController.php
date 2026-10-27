@@ -6,8 +6,9 @@
  *
  * An NPC that is overdue by more than NPC_CATCHUP_THRESHOLD (the game was
  * closed) first replays the missed time in catchUp(); then it acts live: a
- * session of incoming-attack check, one job per build queue, research/training,
- * expansion step, trade between own villages, maybe a raid or revenge - unless it is asleep. When it looks again, how it
+ * session of incoming-attack check, expansion step, the hero (NPCHero: points,
+ * items, adventures, auction, oases), one job per build queue, smithy/research/
+ * training, trade between own villages, maybe a raid or revenge - unless it is asleep. When it looks again, how it
  * chooses and when it takes breaks is NPCHuman (in the replay too).
  */
 class NPCController {
@@ -101,6 +102,8 @@ class NPCController {
 		}
 		$watch = NPCDefence::turn($this, $npc, $villages, $now);
 		NPCExpansion::turn($this, $npc, $villages);   // also sets each village's extra plan and reserve
+		foreach($villages as $v) { NPCOasis::shape($npc, $v); }
+		NPCHero::turn($this, $npc, $villages, $now);   // may keep resources back to revive the hero
 		$delay = NPC_MAX_SLEEP;
 		foreach($villages as $v) {
 			// Sometimes a free queue simply goes unnoticed this time
@@ -197,6 +200,7 @@ class NPCController {
 			foreach($wrefs as $wref) {
 				$v = NPCVillage::load($wref, $npc['tribe']);
 				NPCExpansion::shape($npc, $v);
+				NPCOasis::shape($npc, $v);
 				// Up to one job per build queue at this moment
 				for($k = 0; $k < 2; $k++) {
 					$busy = array('field' => $this->busyAt($free, $wref, 'field', $t),
@@ -207,11 +211,13 @@ class NPCController {
 					$ends[] = $res['end'];
 					$v->refresh();
 				}
-				$m = $this->militaryTurn($npc, $v, $budget, $t, $this->busyAt($free, $wref, 'research', $t), $tag);
+				$m = $this->militaryTurn($npc, $v, $budget, $t, $this->busyAt($free, $wref, 'research', $t), $tag, null, false,
+					$this->busyAt($free, $wref, 'smithy', $t));
 				$budget = $m['budget'];
-				if($m['researchEnd']) {
-					$free[$wref.':research'] = $m['researchEnd'];
-					$ends[] = $m['researchEnd'];
+				foreach(array('research' => 'researchEnd', 'smithy' => 'upgradeEnd') as $queue => $key) {
+					if(!$m[$key]) continue;
+					$free[$wref.':'.$queue] = $m[$key];
+					$ends[] = $m[$key];
 				}
 			}
 			// Let the engine finish everything that already ended (the backdated jobs)
@@ -360,11 +366,26 @@ class NPCController {
 	// Research first (the army saves for it), then training; actions start at $start.
 	// Returns array('budget' => remaining, 'acted' => bool, 'researchEnd' => finish time or 0).
 	// $prefer / $force: see NPCMilitary::trainCandidate() / trainAmount().
-	private function militaryTurn($npc, NPCVillage $v, $budget, $start, $researchBusy = false, $tag = '', $prefer = null, $force = false) {
+	private function militaryTurn($npc, NPCVillage $v, $budget, $start, $researchBusy = false, $tag = '', $prefer = null, $force = false,
+		$upgradeBusy = false) {
 		$profile = isset(NPCMilitary::$armyShare[$npc['profile']]) ? $npc['profile'] : 'balanced';
-		$out = array('budget' => $budget, 'acted' => false, 'researchEnd' => 0);
+		$out = array('budget' => $budget, 'acted' => false, 'researchEnd' => 0, 'upgradeEnd' => 0);
 
-		$research = $researchBusy ? null : NPCMilitary::researchCandidate($v, $profile);
+		// Smithy: better weapons for the army it has, when the mood is for it
+		$up = ($force || $upgradeBusy) ? null : NPCMilitary::upgradeCandidate($v, $profile);
+		$keen = array('raid' => 0.8, 'build' => 0.4, 'save' => 0.25);
+		if($up && NPCHuman::chance(isset($keen[$npc['mood']]) ? $keen[$npc['mood']] : 0.4)) {
+			$c = $up['cost'];
+			$price = $c['wood'] + $c['clay'] + $c['iron'] + $c['crop'];
+			if($budget >= $price && ($cost = NPCActions::queueUpgrade($v, $up['unit'], $start))) {
+				$budget -= $price;
+				$out = array('budget' => $budget, 'acted' => true, 'researchEnd' => 0, 'upgradeEnd' => $cost['end']);
+				$this->log($npc['uid'], $v->wref, 'smithy', self::unitName($up['unit']).' attack -> level '.$cost['level'].' in '.$cost['time'].
+					's, cost '.$c['wood'].'/'.$c['clay'].'/'.$c['iron'].'/'.$c['crop'].' ('.$v->unitCount($up['unit']).' of them)'.$tag);
+			}
+		}
+
+		$research = $researchBusy ? null : NPCMilitary::researchCandidate($v, $profile, $npc['mood']);
 		if($research) {
 			$r = $GLOBALS['r'.$research];
 			$price = $r['wood'] + $r['clay'] + $r['iron'] + $r['crop'];
@@ -381,7 +402,7 @@ class NPCController {
 			}
 			$this->log($npc['uid'], $v->wref, 'research', self::unitName($research).' in '.$cost['time'].'s, cost '.
 				$cost['wood'].'/'.$cost['clay'].'/'.$cost['iron'].'/'.$cost['crop'].$tag);
-			return array('budget' => $budget - $price, 'acted' => true, 'researchEnd' => $cost['end']);
+			return array('budget' => $budget - $price, 'acted' => true, 'researchEnd' => $cost['end'], 'upgradeEnd' => $out['upgradeEnd']);
 		}
 
 		$c = NPCMilitary::trainCandidate($v, $profile, $prefer);
@@ -404,7 +425,7 @@ class NPCController {
 		$this->log($npc['uid'], $v->wref, 'train', $amt.'x '.self::unitName($c['unit']).' ('.$c['role'].', limited by '.$limit.
 			'), done in '.$cost['time'].'s, cost '.$cost['wood'].'/'.$cost['clay'].'/'.$cost['iron'].'/'.$cost['crop'].$tag);
 		return array('budget' => $budget - ($cost['wood'] + $cost['clay'] + $cost['iron'] + $cost['crop']),
-			'acted' => true, 'researchEnd' => 0);
+			'acted' => true, 'researchEnd' => 0, 'upgradeEnd' => $out['upgradeEnd']);
 	}
 
 	private static function unitName($unit) {
@@ -427,6 +448,7 @@ class NPCController {
 		foreach($villages as $v) {
 			$plan = NPCAttack::plan($npc, $v);
 			if(!$plan) continue;
+			NPCHero::escort($npc, $v, $plan);
 			if(!NPCActions::sendRaid($npc['uid'], $v, $plan)) {
 				$this->log($npc['uid'], $v->wref, 'raid_failed', 'units changed before sending', true);
 				continue;
@@ -438,7 +460,8 @@ class NPCController {
 			$this->log($npc['uid'], $v->wref, 'raid', ($plan['probe'] ? 'probe ' : '').$t['name'].' ('.
 				$database->getUserField($t['owner'], 'username', 0).') '.$t['x'].'|'.$t['y'].', '.implode(' + ', $units).
 				', capacity '.$plan['capacity'].', expected loot '.$plan['loot'].', attack '.round($plan['attack']).
-				' vs known defence '.round($plan['defence']).', arrives in '.$plan['seconds'].'s');
+				' vs known defence '.round($plan['defence']).(!empty($plan['hero']) ? ', the hero rides along' : '').
+				', arrives in '.$plan['seconds'].'s');
 			return;
 		}
 		$this->log($npc['uid'], 0, 'raid_wait', 'no raid: no worthwhile target in range or not enough offensive units', true);

@@ -74,6 +74,27 @@ class NPCActions {
 			'time' => $time - $start, 'end' => $time);
 	}
 
+	// Smithy upgrade of $unit's attack by one level (Technology::upgradeSword()):
+	// research row "b<n>", researchComplete() raises abdata. Returns cost (with
+	// 'end') or false. $start as in queueBuild().
+	public static function queueUpgrade(NPCVillage $v, $unit, $start = null) {
+		global $database;
+		$start = $start === null ? time() : $start;
+		$j = $unit - ($v->tribe - 1) * 10;
+		$level = intval($v->abdata['b'.$j]) + 1;
+		$data = $GLOBALS['ab'.$unit][$level];
+		$time = $start + round($data['time'] * ($GLOBALS['bid12'][$v->typeLevel(12)]['attri'] / 100) / SPEED);
+		if(!self::takeResources($v->wref, $data)) {
+			return false;
+		}
+		if(!$database->addResearch($v->wref, 'b'.$j, $time)) {
+			$database->modifyResource($v->wref, $data['wood'], $data['clay'], $data['iron'], $data['crop'], 1);
+			return false;
+		}
+		return array('wood' => $data['wood'], 'clay' => $data['clay'], 'iron' => $data['iron'], 'crop' => $data['crop'],
+			'time' => $time - $start, 'end' => $time, 'level' => $level);
+	}
+
 	// Queues $amt units behind the building's current queue, writing the same row
 	// as $database->trainUnit() (which can't be used: it needs the session's $village).
 	// Returns the total cost (with 'end') or false. $start as in queueBuild().
@@ -102,7 +123,8 @@ class NPCActions {
 	// Sends a raid (attack_type 4) like Units::sendTroops(): takes the units out of
 	// the village, writes s1_attacks + an outgoing movement (sort_type 3) and lets
 	// the automation fight it out, bring survivors back and deliver the loot.
-	// $plan comes from NPCAttack::plan(). Returns the attacks id or false.
+	// $plan comes from NPCAttack::plan() or NPCOasis ($plan['hero']: the hero rides
+	// along - NPCHero::escort()). Returns the attacks id or false.
 	public static function sendRaid($uid, NPCVillage $v, $plan) {
 		global $database;
 		// Atomic: take all units or none (the village may have lost some since loading)
@@ -111,15 +133,22 @@ class NPCActions {
 			$set[] = "u".intval($unit)." = u".intval($unit)." - ".intval($n);
 			$where[] = "u".intval($unit)." >= ".intval($n);
 		}
+		$hero = !empty($plan['hero']);
+		if($hero) {
+			$set[] = "hero = hero - 1";
+			$where[] = "hero >= 1";
+		}
+		if(empty($set)) return false;
 		$database->query("UPDATE ".TB_PREFIX."units SET ".implode(', ', $set)." WHERE vref = ".$v->wref." AND ".implode(' AND ', $where));
 		if(mysql_affected_rows($database->connection) != 1) {
 			return false;
 		}
 
-		// s1_attacks stores t1..t10 relative to the tribe, t11 = hero (never sent)
+		// s1_attacks stores t1..t10 relative to the tribe, t11 = hero
 		$t = array_fill(1, 11, 0);
 		$first = ($v->tribe - 1) * 10;
 		foreach($plan['units'] as $unit => $n) { $t[$unit - $first] = intval($n); }
+		$t[11] = $hero ? 1 : 0;
 		$ref = $database->addAttack($v->wref, $t[1], $t[2], $t[3], $t[4], $t[5], $t[6], $t[7], $t[8], $t[9], $t[10], $t[11], 4, 0, 0, 0);
 		$arrive = time() + $plan['seconds'];
 		if(!$ref || !$database->addMovement(3, $v->wref, $plan['target']['wref'], $ref, 0, $arrive)) {

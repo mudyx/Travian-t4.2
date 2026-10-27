@@ -77,7 +77,7 @@ function npc_migrate($force = false) {
 }
 
 function npc_load_classes() {
-	foreach(array('NPCVillage', 'NPCRules', 'NPCEconomy', 'NPCMilitary', 'NPCIntel', 'NPCAttack', 'NPCActions', 'NPCHuman', 'NPCDefence', 'NPCWorld', 'NPCExpansion', 'NPCMarket', 'NPCFactory', 'NPCController') as $class) {
+	foreach(array('NPCVillage', 'NPCRules', 'NPCEconomy', 'NPCMilitary', 'NPCIntel', 'NPCAttack', 'NPCActions', 'NPCHuman', 'NPCDefence', 'NPCWorld', 'NPCExpansion', 'NPCMarket', 'NPCHero', 'NPCAuction', 'NPCOasis', 'NPCFactory', 'NPCController') as $class) {
 		require_once dirname(__FILE__).'/'.$class.'.php';
 	}
 }

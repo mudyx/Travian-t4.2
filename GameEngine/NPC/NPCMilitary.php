@@ -50,21 +50,46 @@ class NPCMilitary {
 	}
 
 	// Units in the order this profile wants them (wanted role first)
-	private static function preferences(NPCVillage $v, $profile) {
+	// A balanced player's mood decides which side comes first (raid: attackers, save: defenders)
+	private static function preferences(NPCVillage $v, $profile, $mood = '') {
 		if(!isset(self::$units[$v->tribe])) return array();
 		$u = self::$units[$v->tribe];
 		$first = self::$offShare[$profile] >= 0.5 ? 'off' : 'def';
+		if($profile == 'balanced' && $mood == 'save') $first = 'def';
+		if($profile != 'farmer' && $mood == 'raid') $first = 'off';
 		$second = $first == 'off' ? 'def' : 'off';
 		return array_values(array_unique(array_merge($u[$first], $u[$second])));
 	}
 
 	// Next unit to research, or null
-	public static function researchCandidate(NPCVillage $v, $profile) {
+	public static function researchCandidate(NPCVillage $v, $profile, $mood = '') {
 		if($v->isResearching() || $v->typeLevel(22) == 0) return null;
-		foreach(self::preferences($v, $profile) as $unit) {
+		foreach(self::preferences($v, $profile, $mood) as $unit) {
 			if(self::canResearch($v, $unit)) return $unit;
 		}
 		return null;
+	}
+
+	// Smithy upgrade worth doing now: the attack of an offensive unit the village
+	// has plenty of (the more levels, the bigger the army it wants first), up to
+	// the smithy's level. The engine's smithy only improves attack, so players who
+	// don't attack leave it alone. Returns array(unit, level, cost) or null.
+	public static function upgradeCandidate(NPCVillage $v, $profile) {
+		$smithy = $v->typeLevel(12);
+		if($smithy < 1 || $v->isUpgrading() || self::$offShare[$profile] <= 0 || !isset(self::$units[$v->tribe])) return null;
+		$best = null;
+		foreach(self::$units[$v->tribe]['off'] as $unit) {
+			if(!$v->isResearched($unit) || !isset($GLOBALS['ab'.$unit])) continue;
+			$level = intval($v->abdata['b'.($unit - ($v->tribe - 1) * 10)]);
+			if($level >= $smithy || $level >= 20) continue;
+			$n = $v->unitCount($unit);
+			if($n < 15 + 10 * $level) continue;
+			$score = $n * $GLOBALS['u'.$unit]['atk'] / (1 + $level);
+			if(!$best || $score > $best['score']) {
+				$best = array('unit' => $unit, 'level' => $level + 1, 'cost' => $GLOBALS['ab'.$unit][$level + 1], 'score' => $score);
+			}
+		}
+		return $best;
 	}
 
 	// Building that trains a unit (19 barracks / 20 stable / 25 residence), 0 if none

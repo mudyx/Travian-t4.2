@@ -37,6 +37,7 @@ class NPCIntel {
 
 			$database->query("UPDATE ".TB_PREFIX."npc_raid SET evaluated = 1, lost_units = ".$lost.", loot = ".$loot.
 				" WHERE id = ".intval($r['id']));
+			if(intval($r['sent_units']) == 0) continue;   // the hero alone (oasis): nothing to learn about defence
 			// Only the survivors carried loot home
 			$carried = intval($r['capacity']) * $survivors / $sent;
 			self::learn($r['uid'], $r['to_wref'], floatval($r['attack']), $lost / $sent, $loot, $carried, $lost);
