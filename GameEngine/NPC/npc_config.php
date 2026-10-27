@@ -17,5 +17,13 @@ define('NPC_STORAGE_HOURS', 3);             // warehouse/granary should hold at 
 define('NPC_ARMY_BUDGET_CAP_HOURS', 6);     // the army budget never holds more than this many hours of its share
 define('NPC_TRAIN_QUEUE_SECONDS', 1800);    // don't queue more training than this per building
 
-// Attack targets (used from the attack phase on)
+// Raids (attack_type 4). Times are game seconds at speed 1 and get divided by SPEED.
 define('NPC_ATTACK_REAL_PLAYERS', false);   // false = NPCs raid only farms and other NPCs
+define('NPC_RAID_PROFILES', 'balanced,aggressor'); // farmers never raid
+define('NPC_RAID_INTERVAL', 3600);          // base pause between raids of one NPC; x (1.5 - aggression/100)
+define('NPC_RAID_TARGET_COOLDOWN', 7200);   // the same NPC doesn't hit the same target again before this
+define('NPC_RAID_MAX_ACTIVE', 2);           // raids of one NPC on the way at the same time
+define('NPC_RAID_RADIUS', 25);              // fields
+define('NPC_RAID_HOME_RESERVE', 0.3);       // share of offensive units that always stays home (defensive units never leave)
+define('NPC_RAID_MIN_UNITS', 5);            // smaller raids are not worth it
+define('NPC_RAID_MIN_ADVANTAGE', 1.5);      // attack must be this many times the target's known defence

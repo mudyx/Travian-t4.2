@@ -63,7 +63,37 @@ class NPCController {
 		}
 		$database->query("UPDATE ".TB_PREFIX."npc SET army_budget = ".floatval($budget).", budget_at = ".time().
 			" WHERE uid = ".intval($npc['uid']));
+		$this->raidTurn($npc, $wrefs);
 		return $delay;
+	}
+
+	// At most one raid per turn, once the NPC's raid interval (by aggression) has passed
+	private function raidTurn($npc, $wrefs) {
+		global $database;
+		if(!NPCAttack::canRaid($npc) || time() - $npc['last_attack_at'] < NPCAttack::interval($npc)) {
+			return;
+		}
+		if(NPCAttack::activeRaids($npc['uid']) >= NPC_RAID_MAX_ACTIVE) {
+			return;
+		}
+		foreach($wrefs as $wref) {
+			$v = NPCVillage::load($wref, $npc['tribe']);
+			$plan = NPCAttack::plan($npc, $v);
+			if(!$plan) continue;
+			if(!NPCActions::sendRaid($npc['uid'], $v, $plan)) {
+				$this->log($npc['uid'], $v->wref, 'raid_failed', 'units changed before sending', true);
+				continue;
+			}
+			$database->query("UPDATE ".TB_PREFIX."npc SET last_attack_at = ".time()." WHERE uid = ".intval($npc['uid']));
+			$t = $plan['target'];
+			$units = array();
+			foreach($plan['units'] as $unit => $n) { $units[] = $n.'x '.self::unitName($unit); }
+			$this->log($npc['uid'], $v->wref, 'raid', $t['name'].' ('.$database->getUserField($t['owner'], 'username', 0).') '.
+				$t['x'].'|'.$t['y'].', '.implode(' + ', $units).', capacity '.$plan['capacity'].', expected loot '.$plan['loot'].
+				', attack '.round($plan['attack']).' vs defence '.round($plan['defence']).', arrives in '.$plan['seconds'].'s');
+			return;
+		}
+		$this->log($npc['uid'], 0, 'raid_wait', 'no raid: no worthwhile target in range or not enough offensive units', true);
 	}
 
 	// Adds the profile's share of income for the time since the last top-up.

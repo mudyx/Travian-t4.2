@@ -89,6 +89,45 @@ class NPCActions {
 		return $cost;
 	}
 
+	// Sends a raid (attack_type 4) like Units::sendTroops(): takes the units out of
+	// the village, writes s1_attacks + an outgoing movement (sort_type 3) and lets
+	// the automation fight it out, bring survivors back and deliver the loot.
+	// $plan comes from NPCAttack::plan(). Returns the attacks id or false.
+	public static function sendRaid($uid, NPCVillage $v, $plan) {
+		global $database;
+		// Atomic: take all units or none (the village may have lost some since loading)
+		$set = $where = array();
+		foreach($plan['units'] as $unit => $n) {
+			$set[] = "u".intval($unit)." = u".intval($unit)." - ".intval($n);
+			$where[] = "u".intval($unit)." >= ".intval($n);
+		}
+		$database->query("UPDATE ".TB_PREFIX."units SET ".implode(', ', $set)." WHERE vref = ".$v->wref." AND ".implode(' AND ', $where));
+		if(mysql_affected_rows($database->connection) != 1) {
+			return false;
+		}
+
+		// s1_attacks stores t1..t10 relative to the tribe, t11 = hero (never sent)
+		$t = array_fill(1, 11, 0);
+		$first = ($v->tribe - 1) * 10;
+		foreach($plan['units'] as $unit => $n) { $t[$unit - $first] = intval($n); }
+		$ref = $database->addAttack($v->wref, $t[1], $t[2], $t[3], $t[4], $t[5], $t[6], $t[7], $t[8], $t[9], $t[10], $t[11], 4, 0, 0, 0);
+		$arrive = time() + $plan['seconds'];
+		if(!$ref || !$database->addMovement(3, $v->wref, $plan['target']['wref'], $ref, 0, $arrive)) {
+			if($ref) $database->query("DELETE FROM ".TB_PREFIX."attacks WHERE id = ".intval($ref));
+			$database->query("UPDATE ".TB_PREFIX."units SET ".str_replace(' - ', ' + ', implode(', ', $set))." WHERE vref = ".$v->wref);
+			return false;
+		}
+		// Attacking ends beginner protection, as for players
+		$database->query("UPDATE ".TB_PREFIX."users SET protect = 0 WHERE id = ".intval($uid));
+
+		$list = array();
+		foreach($plan['units'] as $unit => $n) { $list[] = 'u'.$unit.':'.$n; }
+		$database->query("INSERT INTO ".TB_PREFIX."npc_raid (uid, from_wref, to_wref, ref, units, capacity, expected_loot, sent_at, arrive_at) VALUES (".
+			intval($uid).", ".$v->wref.", ".intval($plan['target']['wref']).", ".intval($ref).", '".implode(',', $list)."', ".
+			intval($plan['capacity']).", ".intval(min($plan['loot'], $plan['capacity'])).", ".time().", ".$arrive.")");
+		return $ref;
+	}
+
 	// Atomic "subtract only if there is enough of everything"
 	public static function takeResources($wref, $cost) {
 		global $database;
