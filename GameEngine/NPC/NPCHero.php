@@ -385,11 +385,11 @@ class NPCHero {
 
 	// ---- adventures ----
 
-	// Adventures appear as on the adventure page: one per game day, each open for ten
+	// Adventures appear as on the adventure page (Generator::adventureTimes: one per game
+	// day x s1_config.adventures, each open for five game days)
 	private static function generate($uid, $hero, NPCVillage $home, $now) {
-		global $database;
-		$aday = max(86400 / SPEED, 1800);
-		$tenday = max(432000 / SPEED, 18000);
+		global $database, $generator;
+		list($aday, $tenday) = $generator->adventureTimes();
 		$last = intval($hero['lastadv']);
 		if($last > $now - $aday) return;   // nothing new since the last look
 		if($last <= $now - $tenday) $last = $now - $tenday + $aday;

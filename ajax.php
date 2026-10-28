@@ -12,8 +12,7 @@ include("GameEngine/Village.php");
 if($_GET['buyAdventure'] == "yes"){
 	if($session->gold >= 1) {
 		$herodetail = $database->getHero($session->uid);
-		$aday = max(86400/SPEED,1800);
-		$tenday = max(432000/SPEED,18000);
+		list($aday, $tenday) = $generator->adventureTimes();
 		$endat = $herodetail['lastadv']+$tenday;
 		
 		$dif = rand(0,10)>8;

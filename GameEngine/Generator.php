@@ -208,6 +208,19 @@ class Generator {
 		//$endtime = $endarray[1] + $endarray[0];
 		return $endarray[0];
 	}
+
+	// Hero adventures: a new one every $aday seconds, each open for $tenday (one per game
+	// day, five game days). s1_config.adventures multiplies how many appear
+	// (runtime/novy_svet.bat VYPRAVY; 1 = as before).
+	public function adventureTimes() {
+		global $database;
+		static $rate = null;
+		if($rate === null) {
+			$r = @mysql_fetch_assoc($database->query("SELECT adventures FROM ".TB_PREFIX."config LIMIT 1"));
+			$rate = ($r && floatval($r['adventures']) > 0) ? floatval($r['adventures']) : 1;
+		}
+		return array(max(86400 / SPEED / $rate, 1800 / $rate), max(432000 / SPEED, 18000));
+	}
 	
 };
 $generator = new Generator;

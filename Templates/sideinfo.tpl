@@ -156,10 +156,10 @@ $allianceinfo = $database->getAlliance($aid);
 		<div class="heroXpBarBox">
 			<img src="img/x.gif" class="iExperience" alt="تجربه">
 			<div class="bar" style="width:<?php 
-	if($herodata['level']==0){
-		echo 0;
-	}elseif($herodata['level']<100){
-		echo round(100*($herodata['experience'] - $hero_levels[$herodata['level']-1]) / ($hero_levels[$herodata['level']] - $hero_levels[$herodata['level']-1])); 
+	if($herodata['level']<100){
+		// share of the XP between this level and the next (level 0 starts at 0 XP)
+		$from = $herodata['level'] == 0 ? 0 : $hero_levels[$herodata['level']-1];
+		echo max(0, min(100, round(100*($herodata['experience'] - $from) / ($hero_levels[$herodata['level']] - $from))));
 	} else {
 		echo HEROFULLLVL;
 	}

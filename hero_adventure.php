@@ -15,8 +15,7 @@ $start = $generator->pageLoadTimeStart();
 include "Templates/html.tpl";
 $time = time();
 $herodetail = $database->getHero($session->uid);
-$aday = max(86400/SPEED,1800);
-$tenday = max(432000/SPEED,18000);
+list($aday, $tenday) = $generator->adventureTimes();
 if ($herodetail['lastadv']<=$time-$tenday) $herodetail['lastadv'] = $time-$tenday+$aday;
 $endat = $herodetail['lastadv']+$tenday;
 while($herodetail['lastadv']<=($time-$aday)) {
