@@ -863,7 +863,7 @@ div.village2 div#village_map img{position:absolute;}div.village2 div#village_map
 div.village2 div#village_map img.clickareas{width:628px;height:534px;position:relative;z-index:98;}
 div.village2 div#village_map img.iso{background-image:url(../../img/g/iso.png);}
 .ie6 div.village2 div#village_map img.iso{background-image:url(../../img/g/iso.gif);}
-div.village2 div#village_map div#levels{width:628px;height:534px;position:absolute;z-index:97;visibility:hidden;}
+div.village2 div#village_map div#levels{width:628px;height:534px;position:absolute;top:0;left:0;z-index:97;visibility:hidden;}
 div.village2 div#village_map div#levels.on{visibility:visible;}div.village2 div#village_map div#levels div{visibility:hidden;line-height:25px;}
 .gecko div.village2 div#village_map div#levels div,.ie7 div.village2 div#village_map div#levels div,
 .ie6 div.village2 div#village_map div#levels div{line-height:23px;}

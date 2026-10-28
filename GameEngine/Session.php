@@ -64,6 +64,11 @@
 				if(isset($_COOKIE['lang']) and $_COOKIE['lang']!='' &&(!isset($_SESSION['lang']) || $_SESSION['lang']==''))$_SESSION['lang'] = $_COOKIE['lang'];
 				if (!isset($_SESSION['lang']) || $_SESSION['lang']=='' || $_SESSION['lang']=='LANG') $_SESSION['lang'] = 'fa';
 				include("Lang/" . $_SESSION['lang'] . ".php");
+				// English: the Persian texts some templates have hard-coded are translated on output
+				if($_SESSION['lang'] == 'en') {
+					include_once("Lang/en_fixes.php");
+					ob_start('lang_en_fix_output');
+				}
 				//include("Automation.php");
         		if($this->logged_in && TRACK_USR) {
         			$database->updateActiveUser($this->username, $this->time);

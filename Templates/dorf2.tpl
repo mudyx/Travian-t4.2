@@ -217,9 +217,9 @@ if($village->resarray['f40'] != 0) {
 				$('lswitch').toggleClass('lswitchMinus');
 				$('lswitch').toggleClass('lswitchPlus');
 				if ($('levels').toggleClass('on').hasClass('on')){
-					document.cookie = 't4level=1; expires=Wed, 1 Jan 2020 00:00:00 GMT';
+					document.cookie = 't4level=1; max-age=31536000; path=/';
 				} else {
-					document.cookie = 't4level=1; expires=Thu, 01-Jan-1970 00:00:01 GMT';
+					document.cookie = 't4level=1; max-age=0; path=/';
 				}
 			" />
 	<img class="clickareas" usemap="#clickareas" src="img/x.gif" alt="" />

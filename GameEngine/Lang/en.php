@@ -2046,10 +2046,10 @@ error_reporting($erl);
 
 
 ////////////////////////
-define("LOGIN_BROWSER_1","<b>شما مرورگر مناسبي براي استفاده انتخاب کرديد .<font color='green'> شما از مرورگر موزيلا فايرفاکس استفاده ميکنيد.</font></b>");
-define("LOGIN_BROWSER_2","<b>شما مرورگر مناسبي براي استفاده انتخاب کرديد<font color='green'> . شما از مرورگر گوگل کروم استفاده ميکنيد.</font></b>");
-define("LOGIN_BROWSER_3","<b>شما مرورگر مناسبي براي استفاده انتخاب کرديد .<font color='green'> شما از مرورگر اپرا استفاده ميکنيد.</font></b>");
-define("LOGIN_BROWSER_4","<b>براي استفاده بهتر بايد از مرور گر کروم و يا اپرا و يا موزيلا فايرفکس استفاده کنيد .<font color='red'> شما از مرورگر اينترنت اکسپلور استفاده ميکنيد. </font></b>");
+define("LOGIN_BROWSER_1","<b>You are using a suitable browser.<font color='green'> You are using Mozilla Firefox.</font></b>");
+define("LOGIN_BROWSER_2","<b>You are using a suitable browser.<font color='green'> You are using Google Chrome.</font></b>");
+define("LOGIN_BROWSER_3","<b>You are using a suitable browser.<font color='green'> You are using Opera.</font></b>");
+define("LOGIN_BROWSER_4","<b>For the best experience use Chrome, Opera or Mozilla Firefox.<font color='red'> You are using Internet Explorer.</font></b>");
 define("Elanat_dorf1","in home village");
 define("Ally_dorf1","No alliance");
 define("Elanat_dorf1_2","Info box");
@@ -2101,13 +2101,13 @@ define("first_Gauls_desc4" , "From the very beginning of the game are better def
 define("first_Gauls_desc5" , "Roadway systems are excellent and fastest troops in the game."); 
 define("first_Gauls_desc6" , "The new players are the best choice."); 
 define("first_Roman_desc1" , "Romans"); 
-define("first_Roman_desc2" , "خصوصيات:"); 
+define("first_Roman_desc2" , "Characteristics:"); 
 define("first_Roman_desc3" , "Time management is necessary."); 
 define("first_Roman_desc4" , "They can expand faster than the rest of his village."); 
 define("first_Roman_desc5" , "The powerful army, but they are precious; implemented systems are very powerful."); 
 define("first_Roman_desc6" , "The race was very hard early game and this breed is not recommended for new players."); 
 define("first_Teutons_desc1" , "Teutons"); 
-define("first_Teutons_desc2" , "خصوصيات:"); 
+define("first_Teutons_desc2" , "Characteristics:"); 
 define("first_Teutons_desc3" , "There is enough time for aggressive players."); 
 define("first_Teutons_desc4" , "Troops cheap it can be trained quickly and are good for loot."); 
 define("first_Teutons_desc5" , "For aggressive and experienced players."); 
@@ -2119,8 +2119,8 @@ define("first_page_tribe1_lead","Kvyntvs");
 define("first_page_tribe2_lead","Henrik"); 
 define("first_page_tribe3_lead","Ambyvryks"); 
 define("first_Gauls_chosen_desc1" , "You chose %s. Since this your guide will be %s ."); 
-define("first_Romans_chosen_desc1" , "شما نژاد  %s را انتخاب کرديد. از اين به بعد %s راهنماي شما خواهد بود."); 
-define("first_Teutons_chosen_desc1" , "شما نژاد %s  را انتخاب کرديد. از اين به بعد %s راهنماي شما خواهد بود."); 
+define("first_Romans_chosen_desc1" , "You have chosen the %s. From now on %s will be your guide."); 
+define("first_Teutons_chosen_desc1" , "You have chosen the %s. From now on %s will be your guide."); 
 define("first_page_second_step_desc2" , "Change tribe"); 
 define("first_page_second_step_desc3" , "We build your village or place can change your selection by clicking on the map."); 
 define("first_page_second_step_desc4" , "You will start in north-west"); 

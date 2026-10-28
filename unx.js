@@ -404,8 +404,8 @@ if(_i.cookie){var date=new Date();date.setTime(date.getTime()+300000);document.c
 if(_i.fest&&he('dorf2')){document.getElementById('content').innerHTML+=_i.fest;}
 window.setTimeout(ti,30);}
 function he(bj){return window.location.href.indexOf(bj+'.php')!=-1;}
-function vil_levels_toggle(){var cj=$('levels'),dj=$('lswitch');cj.toggleClass('on');dj.toggleClass('on');if(cj.hasClass('on')){document.cookie='t3l=1; expires=Wed, 1 Jan 2020 00:00:00 GMT';}
-else{document.cookie='t3l=1; expires=Thu, 01-Jan-1970 00:00:01 GMT';}
+function vil_levels_toggle(){var cj=$('levels'),dj=$('lswitch');cj.toggleClass('on');dj.toggleClass('on');if(cj.hasClass('on')){document.cookie='t3l=1; max-age=31536000; path=/';}
+else{document.cookie='t3l=1; max-age=0; path=/';}
 }
 function gmwd(){if(is_ff2&&document.getElementById("gmwi").offsetWidth<50){document.cookie="a3=2; expires=Wed, 1 Jan 2020 00:00:00 GMT";}
 else{document.cookie="a3=1; expires=Wed, 1 Jan 2020 00:00:00 GMT";}
@@ -600,7 +600,9 @@ function gmc(){document.getElementById("gmw").style.display="none";document.cook
 			}
 			scr_upd(quest);
 			$(popup3).empty().set("html",quest.markup);
-																	document.getElementById('sidebar_qst_title').innerHTML = document.getElementById('qst_new_title').innerHTML;
+			// task 6+ titles are an <h4> without id: a missing title must not stop the dialog (it could not be closed)
+			var qstTitle = document.getElementById('qst_new_title') || $$('#qstd h4')[0], qstSide = document.getElementById('sidebar_qst_title');
+			if(qstTitle && qstSide) qstSide.innerHTML = qstTitle.innerHTML;
 
 			popupDragable();
 			quest.markup=false;

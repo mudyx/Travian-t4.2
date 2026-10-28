@@ -333,7 +333,9 @@
 
         	public function sendWelcome($uid, $username) {
         		global $database;
-        		$welcomemsg = file_get_contents("Templates/welcome.tpl");
+        		// the welcome text in the player's language (Templates/welcome_en.tpl), Persian otherwise
+        		$lang = isset($_SESSION['lang']) && preg_match('/^[a-z]{2}$/', $_SESSION['lang']) ? $_SESSION['lang'] : '';
+        		$welcomemsg = file_get_contents(is_file("Templates/welcome_".$lang.".tpl") ? "Templates/welcome_".$lang.".tpl" : "Templates/welcome.tpl");
         		$welcomemsg = preg_replace("'%USER%'", $username, $welcomemsg);
         		$welcomemsg = preg_replace("'%START%'", date("Y/m/d", COMMENCE), $welcomemsg);
         		$welcomemsg = preg_replace("'%TIME%'", date("H:i", COMMENCE), $welcomemsg);
