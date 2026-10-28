@@ -14,6 +14,10 @@ if(!isset($_SESSION['lang'])) $_SESSION['lang'] = 'en';
 		<link href="<?php echo GP_LOCATE; ?>lang/<?php echo $_SESSION['lang']; ?>/compact.css" rel="stylesheet" type="text/css" />
         <link href="<?php echo GP_LOCATE; ?>lang/<?php echo $_SESSION['lang']; ?>/lang.css" rel="stylesheet" type="text/css" />										
         <link href="img/travian_basics.css" rel="stylesheet" type="text/css" />
+        <style type="text/css">
+        	/* building levels sit on the village map, not below it (in the page: a cached compact2.css can't undo it) */
+        	div.village2 div#village_map #levels{top:0;left:0;}
+        </style>
         <script src="unx.js?<?php echo filemtime('unx.js'); ?>" type="text/javascript"></script>
         <script src="crypt.js?<?php echo time();?>" type="text/javascript"></script>
         <script src="jquery.js" type="text/javascript"></script>
